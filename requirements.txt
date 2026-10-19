@@ -3,3 +3,4 @@ uvicorn
 anthropic
 pytest
 httpx
+tenki

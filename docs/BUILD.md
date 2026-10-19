@@ -13,7 +13,7 @@ An agent is **demoable** when: (1) `python -m handoff.demo <agent>` prints its e
 
 ## External wrapper convention (for Masky, Tenki, Claude, DailyMed, n8n)
 
-One function per service with a cached path that needs no network. The demo must still run with Wi-Fi off. Add a test that runs the cached path. Never log patient names; spoken lines and outbound payloads use bed numbers only.
+One function per service: live is the default, with a cached copy as an automatic fallback if the call fails or no key is set. Show which one ran (LIVE/CACHED badge). Add a test that runs the cached path. Never log patient names; spoken lines and outbound payloads use bed numbers only.
 
 ## Components
 
@@ -27,7 +27,7 @@ One function per service with a cached path that needs no network. The demo must
 | 6 | Masky avatars + voices: 5 of 9 created | **blocked on avatar limit (5)** | `scripts/masky_setup.py` | 9 avatars; per-agent conversation; pre-rendered lines |
 | 7 | Masky audio into the huddle (`audio_url` on events, cache warm-up script) | not started | new `handoff/masky.py` | agent lines play in their Masky voice offline from cache |
 | 8 | Avatar images in tiles (replace initials), idle loops | not started | `static/index.html` | tiles show Masky portraits |
-| 9 | Theo on Tenki sandbox (outbound off) + local fallback | not started | new `handoff/sandbox.py` | "sandbox" badge on Theo's chart; fallback works |
+| 9 | Theo on Tenki sandbox (outbound off) + local fallback | **done, verified live** (template script; Claude-written script needs `FLATKEY_API_KEY`) | `handoff/sandbox.py`, `llm.py` | badge reads "tenki sandbox · <source> script · Ns" |
 | 10 | Claude-written SBAR (live) with template fallback | not started | `handoff/writers.py` | Iris still passes; refusal falls back |
 | 11 | DailyMed live fetch with cached fallback | not started | `handoff/agents.py` | Mina's attachment shows fetched text |
 | 12 | n8n workflow (webhook to Slack/Discord + audit row) | not started | n8n cloud + `N8N_WEBHOOK_URL` | page appears in channel on Approve |

@@ -9,7 +9,7 @@ def show(sender, to, text, citations=(), attachment=None):
     if citations:
         print(" " * 15 + " ".join(citations))
     if attachment:
-        print(" " * 15 + f"[attachment: {attachment['type']}]")
+        print(" " * 15 + f"[attachment: {attachment['type']} {attachment.get('badge', '')}]")
 
 
 def main(argv):

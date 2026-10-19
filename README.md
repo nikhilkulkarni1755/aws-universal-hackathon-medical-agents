@@ -8,7 +8,7 @@ Built at the AWS Universal Hackathon (Oct 19, 2026). **All data is synthetic** (
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python server.py        # http://localhost:8000, no API key and no internet needed
+.venv/bin/python server.py        # http://localhost:8000; integrations without a key or network use their cached copy
 .venv/bin/python -m pytest -q
 ```
 
@@ -37,7 +37,7 @@ Optional environment variables: `N8N_WEBHOOK_URL` (production webhook URL; unset
 
 ## What is cached vs live today
 
-Offline mode (default): cached transcript, cached label-check results, cached DailyMed excerpt, template SBARs from `docs/gold-sbar.md`. The ranking, trends, safety flags and Iris checks are computed from the data on every run.
+Until the live integrations land (see `docs/BUILD.md`), these run from cached copies: cached transcript, cached label-check results, cached DailyMed excerpt, template SBARs from `docs/gold-sbar.md`. The ranking, trends, safety flags and Iris checks are computed from the data on every run.
 
 ## Development workflow
 

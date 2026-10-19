@@ -13,6 +13,10 @@ from fastapi.staticfiles import StaticFiles
 from handoff import pipeline
 from handoff.agents import PERSONAS, ROOT
 
+for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []:
+    key, _, value = line.partition("=")
+    os.environ.setdefault(key.strip(), value.strip())
+
 app = FastAPI()
 EVENTS, STATE = [], {"result": None, "running": False}
 CV = threading.Condition()
@@ -38,7 +42,7 @@ def _worker(agent):
 
 @app.get("/api/agents")
 def agents():
-    return {"agents": PERSONAS, "demo": pipeline.AGENTS, "mode": "OFFLINE (cached wrappers)"}
+    return {"agents": PERSONAS, "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
 
 
 @app.post("/api/run")

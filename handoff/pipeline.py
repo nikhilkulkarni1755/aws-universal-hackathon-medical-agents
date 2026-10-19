@@ -7,15 +7,10 @@ import re
 from .agents import (echo_claims, echo_notes, dailymed, lens, lens_signal, load_patients, mina, theo,
                      urine_trend, vera, verbal_conflict)
 from .iris import check_form, check_text, verdict
+from .sandbox import run_script, theo_script
 from .writers import felix_form, sam_draft
 
 TIERS_LINE = "Cross-source validation (patent pending) ranks the unit."
-
-
-def spark(values, w=120, h=28):
-    lo, span = min(values), (max(values) - min(values)) or 1
-    pts = " ".join(f"{i * w / (len(values) - 1):.1f},{h - (v - lo) / span * h:.1f}" for i, v in enumerate(values))
-    return f'<svg width="{w}" height="{h}"><polyline points="{pts}" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
 
 
 def digest(sections, form):
@@ -43,15 +38,20 @@ def echo_step(ctx, emit):
 
 
 def theo_step(ctx, emit):
+    charts, badge = {}, ""
+    if not ctx["quiet"]:  # skip the sandbox when Theo only runs silently as an upstream step
+        script, source = theo_script()
+        runs, badge = run_script(script, list(ctx["pts"].values()), source)
+        charts = dict(zip(ctx["pts"], runs))
     for bed, p in ctx["pts"].items():
         found = theo(p)
         ctx["signals"] += found
         if not found:
             continue
         att = None
-        if bed == "402":
-            hr = [v["hr"] for v in p["vitals"]]
-            att = {"type": "svg", "title": f"402 HR {hr[0]} to {hr[-1]}", "svg": spark(hr), "badge": "local"}
+        if charts and bed == "402":
+            hr = charts[bed]["trends"]["hr"]
+            att = {"type": "svg", "title": f"402 HR {hr['first']} to {hr['last']}", "svg": charts[bed]["svg"], "badge": badge}
         shown = []
         for src in dict.fromkeys(s["source"] for s in found):
             shown += [s for s in found if s["source"] == src][:2]
@@ -135,7 +135,8 @@ def run(emit, only=None):
     only = ALIASES.get(only, only)
     ctx = {"pts": {p["bed"]: p for p in load_patients()}, "claims": echo_claims(), "signals": []}
     for agent, step in STEPS:
-        step(ctx, emit if only in (None, agent) else (lambda *a, **k: None))
+        ctx["quiet"] = only not in (None, agent)
+        step(ctx, (lambda *a, **k: None) if ctx["quiet"] else emit)
     if only:
         return None
     return {"ranking": ctx["ranking"], "sbars": ctx["sbars"], "forms": ctx["forms"],
