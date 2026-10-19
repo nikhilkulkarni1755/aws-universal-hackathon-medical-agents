@@ -107,15 +107,23 @@ async function init() {
   };
 }
 
-async function speakText(ev) {         // Masky voice when the agent has one (waits up to 8 s), else browser TTS
+const player = new Audio();            // the only audio element, so two voices can never overlap
+async function speakText(ev) {         // resolves only when this line has really finished, so the next one never starts early
   const p = personas[ev.from], text = ev.text.replace(CHIP, '');
   for (let i = 0; p?.masky && !audioFor[ev.id] && i < 32; i++) await new Promise((r) => setTimeout(r, 250));
+  player.pause(); window.speechSynthesis?.cancel();
   return new Promise((done) => {
-    const fallback = setTimeout(done, 1500 + text.length * 70 + (audioFor[ev.id] ? 6000 : 0));
-    const end = () => { clearTimeout(fallback); done(); };
-    if (audioFor[ev.id]) { const au = new Audio(audioFor[ev.id]); au.onended = end; au.onerror = end; au.play().catch(end); return; }
+    let guard;
+    const end = () => { clearTimeout(guard); player.onended = player.onerror = player.onloadedmetadata = null; done(); };
+    if (audioFor[ev.id]) {
+      guard = setTimeout(end, 40000);  // safety net until the clip's real length is known
+      player.onloadedmetadata = () => { clearTimeout(guard); guard = setTimeout(end, player.duration * 1000 + 2000); };
+      player.onended = player.onerror = end;
+      player.src = audioFor[ev.id]; player.play().catch(end); return;
+    }
     if (!window.speechSynthesis || !p) return end();
-    const u = new SpeechSynthesisUtterance(text); u.pitch = p.pitch; u.rate = p.rate; u.onend = end; u.onerror = end;
+    guard = setTimeout(end, 3000 + text.length * 120);
+    const u = new SpeechSynthesisUtterance(text); u.pitch = p.pitch; u.rate = p.rate; u.onend = u.onerror = end;
     speechSynthesis.speak(u);
   });
 }
@@ -172,7 +180,7 @@ function renderCards() {
     const v = document.createElement('span'); v.className = s.iris.ok ? 'iris-ok' : 'iris-bad'; v.textContent = 'Iris: ' + s.iris.text; h.append(v);
     card.append(h);
     'SBAR'.split('').forEach((k) => { const p = document.createElement('p'); const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k + ':'; p.append(kk); const t = document.createElement('span'); fill(t, s.sections[k]); p.append(t); card.append(p); });
-    const ask = document.createElement('p'); fill(ask, 'Provider form (Felix) — ask: ' + f.ask); card.append(ask);
+    const ask = document.createElement('p'); fill(ask, 'Provider form (Quinn) — ask: ' + f.ask); card.append(ask);
     const btn = document.createElement('button'); btn.textContent = 'Approve & send page'; btn.disabled = !s.iris.ok;
     const out = document.createElement('span'); out.style.marginLeft = '8px';
     btn.onclick = async () => {

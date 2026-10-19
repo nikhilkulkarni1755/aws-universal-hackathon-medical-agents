@@ -11,15 +11,10 @@ DAILYMED = "https://dailymed.nlm.nih.gov/dailymed/services/v2"
 ROOT = Path(__file__).resolve().parent.parent
 
 PERSONAS = [
-    {"name": "Quinn", "role": "Supervisor", "color": "#4C6EF5", "pitch": 0.8, "rate": 0.95},
-    {"name": "Wren", "role": "Chart Clerk", "color": "#868E96", "pitch": 1.1, "rate": 1.05},
-    {"name": "Echo", "role": "Listener", "color": "#12B886", "pitch": 1.0, "rate": 0.9},
-    {"name": "Theo", "role": "Trend Analyst", "color": "#228BE6", "pitch": 0.7, "rate": 0.95},
-    {"name": "Lens", "role": "Label Check", "color": "#F59F00", "pitch": 1.3, "rate": 1.15},
+    {"name": "Quinn", "role": "Head Nurse", "color": "#4C6EF5", "pitch": 0.8, "rate": 0.95},
+    {"name": "Wren", "role": "Chart & Handoff", "color": "#868E96", "pitch": 1.1, "rate": 1.05},
     {"name": "Mina", "role": "Medication Safety", "color": "#E64980", "pitch": 1.25, "rate": 1.0},
-    {"name": "Vera", "role": "Risk Validator", "color": "#7048E8", "pitch": 1.0, "rate": 0.9},
-    {"name": "Sam", "role": "SBAR Writer", "color": "#40C057", "pitch": 1.15, "rate": 1.0},
-    {"name": "Felix", "role": "Provider Form", "color": "#FD7E14", "pitch": 0.95, "rate": 1.05},
+    {"name": "Vera", "role": "Risk & SBAR", "color": "#7048E8", "pitch": 1.0, "rate": 0.9},
     {"name": "Iris", "role": "Safety Auditor", "color": "#E03131", "pitch": 0.6, "rate": 0.85},
 ]
 

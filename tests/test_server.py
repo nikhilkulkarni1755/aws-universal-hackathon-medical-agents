@@ -39,11 +39,11 @@ def test_full_run_ask_and_approve(client):
 
 
 def test_single_agent_demo_leaves_no_result(client):
-    assert client.post("/api/run?agent=theo").status_code == 200
+    assert client.post("/api/run?agent=wren").status_code == 200
     _wait()
     state = client.get("/api/state").json()
-    assert state["result"] is None and {e["from"] for e in state["events"] if "from" in e} == {"Quinn", "Theo"}
-    assert client.post("/api/run?agent=nobody").status_code == 404
+    assert state["result"] is None and {e["from"] for e in state["events"] if "from" in e} == {"Quinn", "Wren"}
+    assert client.post("/api/run?agent=theo").status_code == 404
 
 
 def test_stream_delivers_events_while_a_run_is_in_progress(client):

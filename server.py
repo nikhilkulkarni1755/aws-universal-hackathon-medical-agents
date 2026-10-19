@@ -138,7 +138,7 @@ async def approve(bed: str, req: Request):
     payload, status = _page(bed, tier, body.get("approver", "Incoming RN"), form["evidence"])
     with AUDIT.open("a") as f:
         f.write(json.dumps({**payload, "hash": result["hashes"][bed]}) + "\n")
-    emit("Felix", "RN", f"{bed}: {status}.", form["evidence"])
+    emit("Quinn", "RN", f"{bed}: {status}.", form["evidence"])
     return {"status": status, "payload": payload}
 
 

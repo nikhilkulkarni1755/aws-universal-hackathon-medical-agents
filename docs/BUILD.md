@@ -1,9 +1,11 @@
 # Build board (Oct 19, code freeze 4:30 PM, submit 5:30 PM)
 
+**Roster is five agents (Quinn, Wren, Mina, Vera, Iris).** Felix's form work lives in Quinn, Echo and Theo in Wren, Lens in Mina, Sam in Vera. Step functions in `handoff/pipeline.py` keep their old names (`echo_step`, `theo_step`, `lens_step`, `sam_step`, `felix_step`); `agents.py` signals keep the old skill tags.
+
 ## Test and demo each agent on its own
 
 ```bash
-.venv/bin/python -m handoff.demo list        # agents: quinn echo theo lens mina vera sam felix iris | all
+.venv/bin/python -m handoff.demo list        # agents: iris mina quinn vera wren | all
 .venv/bin/python -m handoff.demo theo        # one agent's events in the terminal (upstream steps run silently)
 .venv/bin/python -m pytest -q                # tests/test_agents.py has one row per agent; test_server.py covers the API
 .venv/bin/python server.py                   # huddle page; pick "Demo: <agent>" in the header to run one agent alone

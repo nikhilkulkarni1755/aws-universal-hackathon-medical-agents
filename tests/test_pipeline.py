@@ -25,7 +25,7 @@ def test_401_single_abnormal_lab_stays_routine():
 
 def test_iris_rejects_then_passes_402():
     events, result = _run()
-    iris = [e[2] for e in events if e[0] == "Iris" and e[1] == "Sam"]
+    iris = [e[2] for e in events if e[0] == "Iris" and e[1] == "Vera"]
     assert iris[0].startswith("Rejected: CR-2") and iris[1].startswith("Pass.")
     assert all(s["iris"]["ok"] for s in result["sbars"].values())
 
@@ -60,12 +60,13 @@ def test_ask_answers_with_citations():
 
 def test_quinn_routes_questions_to_the_owning_agent():
     _, result = _run()
-    cases = {"Why is 402 above 403?": "Vera", "What is bed 403's urine trend?": "Theo", "Any missed meds for 404?": "Mina",
-             "What did the label scan show for 403?": "Lens", "What did the outgoing nurse say about 402?": "Echo",
-             "Is 404 allergic to anything?": "Wren", "Why was the draft rejected?": "Iris", "Show the SBAR for 402": "Sam",
-             "What is on the provider form for 402?": "Felix", "hello": "Quinn"}
+    cases = {"Why is 402 above 403?": "Vera", "What is bed 403's urine trend?": "Wren", "Any missed meds for 404?": "Mina",
+             "What did the label scan show for 403?": "Mina", "What did the outgoing nurse say about 402?": "Wren",
+             "Is 404 allergic to anything?": "Wren", "Why was the draft rejected?": "Iris", "Show the SBAR for 402": "Vera",
+             "What is on the provider form for 402?": "Quinn", "hello": "Quinn"}
     for question, agent in cases.items():
         ans = answer(question, result)
         assert ans["agent"] == agent, question
         assert ans["text"]
     assert "Sulfa" in answer("allergies for 402", result)["text"]
+    assert "Ask:" in answer("What is on the provider form for 402?", result)["text"]
