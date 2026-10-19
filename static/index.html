@@ -112,6 +112,12 @@ async function init() {
 }
 
 const player = new Audio();            // the only audio element, so two voices can never overlap
+const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function unlockAudio() { player.src = SILENCE; player.play().catch(() => {}); }   // a click lets later clips play
+const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph/i;
+function fallbackVoice() {
+  return speechSynthesis.getVoices().find((v) => /^en/i.test(v.lang) && !NOVELTY.test(v.name)) || null;
+}
 async function speakText(ev) {         // resolves only when this line has really finished, so the next one never starts early
   const p = personas[ev.from], text = ev.text.replace(CHIP, '');
   for (let i = 0; p?.masky && !audioFor[ev.id] && i < 32; i++) await new Promise((r) => setTimeout(r, 250));
@@ -127,7 +133,7 @@ async function speakText(ev) {         // resolves only when this line has reall
     }
     if (!window.speechSynthesis || !p) return end();
     guard = setTimeout(end, 3000 + text.length * 120);
-    const u = new SpeechSynthesisUtterance(text); u.pitch = p.pitch; u.rate = p.rate; u.onend = u.onerror = end;
+    const u = new SpeechSynthesisUtterance(text); u.voice = fallbackVoice(); u.pitch = p.pitch; u.rate = p.rate; u.onend = u.onerror = end;
     speechSynthesis.speak(u);
   });
 }
@@ -201,14 +207,18 @@ function renderCards() {
 }
 
 $('start').onclick = async () => {
+  unlockAudio();
   result = null; queue = []; $('log').textContent = ''; $('cards').textContent = ''; $('board').textContent = '';
   const r = await fetch('/api/run' + ($('agent').value ? '?agent=' + $('agent').value : ''), { method: 'POST' });
   if (!r.ok) alert('A run is already in progress.');
 };
-async function ask() { const q = $('q').value.trim(); if (q) { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); $('q').value = ''; } }
+async function ask() { unlockAudio(); const q = $('q').value.trim(); if (q) { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); $('q').value = ''; } }
 $('ask').onclick = ask; $('q').onkeydown = (e) => e.key === 'Enter' && ask();
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR) { $('mic').onclick = () => { const r = new SR(); r.onresult = (e) => { $('q').value = e.results[0][0].transcript; ask(); }; r.start(); }; } else $('mic').disabled = true;
+if (SR) { $('mic').onclick = () => { const r = new SR(); r.onresult = (e) => { $('q').value = e.results[0][0].transcript; ask(); }; r.start(); }; } else {
+  $('mic').disabled = true; $('mic').title = 'Speech recognition needs Google Chrome';
+  $('q').placeholder = 'Type your question (the mic needs Google Chrome: open http://localhost:8000 there)';
+}
 init();
 </script>
 </body>
