@@ -10,8 +10,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from handoff import pipeline
+from handoff import masky, pipeline
 from handoff.agents import PERSONAS, ROOT
+from handoff.personality import quip
 
 for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []:
     key, _, value = line.partition("=")
@@ -24,11 +25,23 @@ AUDIT = ROOT / "audit.jsonl"
 PACE_S = float(os.environ.get("EVENT_PACE_S", "0.4"))
 
 
+def _voice(event):
+    """Render the line in the agent's Masky voice, then tell the page which event the audio belongs to."""
+    url = masky.speak(event["from"], event["text"])
+    if url:
+        with CV:
+            EVENTS.append({"id": len(EVENTS), "audio_for": event["id"], "audio_url": url})
+            CV.notify_all()
+
+
 def emit(sender, to, text, citations=(), attachment=None):
     with CV:
-        EVENTS.append({"id": len(EVENTS), "from": sender, "to": to, "text": text,
-                       "citations": list(citations), "attachment": attachment, "ts": time.time()})
+        event = {"id": len(EVENTS), "from": sender, "to": to, "text": text,
+                 "citations": list(citations), "attachment": attachment, "ts": time.time()}
+        EVENTS.append(event)
         CV.notify_all()
+    if masky.has_voice(sender):
+        threading.Thread(target=_voice, args=(event,), daemon=True).start()
     time.sleep(PACE_S)
 
 
@@ -42,7 +55,7 @@ def _worker(agent):
 
 @app.get("/api/agents")
 def agents():
-    return {"agents": PERSONAS, "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
+    return {"agents": [{**p, "masky": masky.has_voice(p["name"])} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
 
 
 @app.post("/api/run")
@@ -85,7 +98,9 @@ async def ask(req: Request):
     question = (await req.json()).get("question", "")
     ans = pipeline.answer(question, STATE["result"])
     emit("RN", "Quinn", question)
-    emit("Quinn", "RN", ans["text"], ans["citations"])
+    if ans["agent"] != "Quinn":
+        emit("Quinn", ans["agent"], f"{ans['agent']}, can you take this one? {quip('Quinn', 'route')}")
+    emit(ans["agent"], "RN", ans["text"], ans["citations"])
     return ans
 
 

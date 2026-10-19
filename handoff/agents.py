@@ -1,12 +1,18 @@
 """Agent logic over data/patients.json. Every finding is a signal dict with a citation."""
+import html
 import json
+import os
 import re
+from functools import lru_cache
 from pathlib import Path
+from urllib.request import urlopen
 
+DAILYMED = "https://dailymed.nlm.nih.gov/dailymed/services/v2"
 ROOT = Path(__file__).resolve().parent.parent
 
 PERSONAS = [
     {"name": "Quinn", "role": "Supervisor", "color": "#4C6EF5", "pitch": 0.8, "rate": 0.95},
+    {"name": "Wren", "role": "Chart Clerk", "color": "#868E96", "pitch": 1.1, "rate": 1.05},
     {"name": "Echo", "role": "Listener", "color": "#12B886", "pitch": 1.0, "rate": 0.9},
     {"name": "Theo", "role": "Trend Analyst", "color": "#228BE6", "pitch": 0.7, "rate": 0.95},
     {"name": "Lens", "role": "Label Check", "color": "#F59F00", "pitch": 1.3, "rate": 1.15},
@@ -38,6 +44,11 @@ def _sig(p, source, text, citation, kind="condition", severity="low", agent=""):
 
 def _span(t):
     return t.replace("-", "–")
+
+
+def wren(p):
+    """Chart clerk: code status and allergies straight from the chart."""
+    return f"{p['bed']} {p['code_status']}, allergy {', '.join(p['allergies'])}"
 
 
 def theo(p):
@@ -75,8 +86,20 @@ def echo_claims():
     return json.loads(path.read_text())["claims"]
 
 
+@lru_cache(maxsize=1)
 def dailymed():
-    return json.loads((ROOT / "assets" / "dailymed_digoxin.json").read_text())
+    """Digoxin label warning fetched live from DailyMed; the cached excerpt if it is unreachable (badge says which)."""
+    cached = json.loads((ROOT / "assets" / "dailymed_digoxin.json").read_text())
+    if os.environ.get("NO_LIVE"):
+        return {**cached, "badge": "cached excerpt"}
+    try:
+        found = json.load(urlopen(f"{DAILYMED}/spls.json?drug_name=digoxin&pagesize=25", timeout=10))["data"]
+        setid = next(d["setid"] for d in found if d["title"].startswith("DIGOXIN TABLET"))
+        text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", urlopen(f"{DAILYMED}/spls/{setid}.xml", timeout=15).read().decode()))
+        warning = next(s for s in re.split(r"(?<=[.!?]) ", text) if re.search(r"hypokalemia.*digoxin toxicity", s, re.I))
+        return {**cached, "warning": html.unescape(warning), "badge": "live from DailyMed"}
+    except (OSError, StopIteration, KeyError, ValueError):
+        return {**cached, "badge": "cached excerpt"}
 
 
 def mina(p, claims):

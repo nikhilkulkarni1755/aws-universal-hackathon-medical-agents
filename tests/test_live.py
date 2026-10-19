@@ -14,6 +14,13 @@ def test_sandbox_local_fallback_runs_the_script():
     assert results[0]["svg"].startswith("<svg")
 
 
+@pytest.mark.skipif(not os.environ.get("LIVE"), reason="set LIVE=1 to call DailyMed")
+def test_dailymed_is_fetched_live():
+    from handoff.agents import dailymed
+    label = dailymed()
+    assert label["badge"] == "live from DailyMed" and "hypokalemia" in label["warning"].lower()
+
+
 @pytest.mark.skipif(not os.environ.get("LIVE"), reason="set LIVE=1 to call Tenki")
 def test_tenki_sandbox_is_used_when_key_present():
     from server import ROOT  # noqa: F401  (loads .env)

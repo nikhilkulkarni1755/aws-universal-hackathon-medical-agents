@@ -29,7 +29,7 @@ def test_full_run_ask_and_approve(client):
     result = client.get("/api/state").json()["result"]
     assert [r["bed"] for r in result["ranking"]] == ["402", "403", "404", "401"]
     ans = client.post("/api/ask", json={"question": "Why is 402 above 403?"}).json()
-    assert "402 is Escalate" in ans["text"] and ans["citations"]
+    assert ans["agent"] == "Vera" and "402: Escalate" in ans["text"] and ans["citations"]
     assert client.post("/api/approve/402", json={"hash": "wrong"}).status_code == 409
     ok = client.post("/api/approve/402", json={"approver": "Incoming RN", "hash": result["hashes"]["402"]})
     assert ok.status_code == 200 and "page" in ok.json()["status"]
@@ -41,5 +41,5 @@ def test_single_agent_demo_leaves_no_result(client):
     assert client.post("/api/run?agent=theo").status_code == 200
     _wait()
     state = client.get("/api/state").json()
-    assert state["result"] is None and {e["from"] for e in state["events"] if "from" in e} == {"Theo"}
+    assert state["result"] is None and {e["from"] for e in state["events"] if "from" in e} == {"Quinn", "Theo"}
     assert client.post("/api/run?agent=nobody").status_code == 404

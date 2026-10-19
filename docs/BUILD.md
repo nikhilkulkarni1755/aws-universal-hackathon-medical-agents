@@ -24,8 +24,9 @@ One function per service: live is the default, with a cached copy as an automati
 | 3 | Sam / Felix templates | done | `handoff/writers.py` | gold SBAR + form per bed |
 | 4 | API: run, stream, state, ask, approve + audit | done, tested | `server.py` | `tests/test_server.py` green |
 | 5 | Huddle page (tiles, captions, board, cards, Ask, Approve) | built, **not yet browser-tested** | `static/index.html` | every "Demo:" option runs; no console errors |
-| 6 | Masky avatars + voices: 5 of 9 created | **blocked on avatar limit (5)** | `scripts/masky_setup.py` | 9 avatars; per-agent conversation; pre-rendered lines |
-| 7 | Masky audio into the huddle (`audio_url` on events, cache warm-up script) | not started | new `handoff/masky.py` | agent lines play in their Masky voice offline from cache |
+| 6 | Masky avatars + voices: 5 of 10 created (Iris, Vera, Theo, Mina, Sam) | **blocked on avatar limit (5); Quinn and Wren need slots** | `scripts/masky_setup.py` | 9 avatars; per-agent conversation; pre-rendered lines |
+| 7 | Masky audio into the huddle | **done**: server renders each line in the agent's voice (6 s cold, 1.3 s repeat) and the page plays it; browser voice if none | `handoff/masky.py`, `server.py`, `static/index.html` | cache warm-up script still to do |
+| 7b | Quinn routes questions to the owning agent; Wren (chart clerk) added | **done, tested** | `handoff/pipeline.py` (`ROUTES`, `ANSWERERS`) | `pytest` green |
 | 8 | Avatar images in tiles (replace initials), idle loops | not started | `static/index.html` | tiles show Masky portraits |
 | 9 | Theo on Tenki sandbox (outbound off) + local fallback | **done, verified live** (template script; Claude-written script needs `FLATKEY_API_KEY`) | `handoff/sandbox.py`, `llm.py` | badge reads "tenki sandbox · <source> script · Ns" |
 | 10 | Claude-written SBAR (live) with template fallback | not started | `handoff/writers.py` | Iris still passes; refusal falls back |

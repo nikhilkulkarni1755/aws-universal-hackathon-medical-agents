@@ -71,6 +71,7 @@
 const $ = (id) => document.getElementById(id);
 const CHIP = /(\[[^\]]+\])/g;
 let personas = {}, queue = [], busy = false, result = null;
+const audioFor = {};   // event id -> Masky audio URL, filled by SSE audio events
 
 function fill(el, text) {              // text with citation chips, built with DOM nodes (no HTML injection)
   el.textContent = '';
@@ -95,15 +96,20 @@ async function init() {
     $('strip').append(t);
   });
   const es = new EventSource('/api/stream');
-  es.onmessage = (m) => { const e = JSON.parse(m.data); if (!e.done) { queue.push(e); pump(); } };
+  es.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.audio_for !== undefined) audioFor[e.audio_for] = e.audio_url;
+    else if (!e.done) { queue.push(e); pump(); }
+  };
 }
 
-function speakText(ev) {               // Masky audio when the event carries one, else browser TTS with a per-agent voice
+async function speakText(ev) {         // Masky voice when the agent has one (waits up to 8 s), else browser TTS
+  const p = personas[ev.from], text = ev.text.replace(CHIP, '');
+  for (let i = 0; p?.masky && !audioFor[ev.id] && i < 32; i++) await new Promise((r) => setTimeout(r, 250));
   return new Promise((done) => {
-    const p = personas[ev.from], text = ev.text.replace(CHIP, '');
-    const fallback = setTimeout(done, 1500 + text.length * 70);
+    const fallback = setTimeout(done, 1500 + text.length * 70 + (audioFor[ev.id] ? 6000 : 0));
     const end = () => { clearTimeout(fallback); done(); };
-    if (ev.audio_url) { const au = new Audio(ev.audio_url); au.onended = end; au.onerror = end; au.play().catch(end); return; }
+    if (audioFor[ev.id]) { const au = new Audio(audioFor[ev.id]); au.onended = end; au.onerror = end; au.play().catch(end); return; }
     if (!window.speechSynthesis || !p) return end();
     const u = new SpeechSynthesisUtterance(text); u.pitch = p.pitch; u.rate = p.rate; u.onend = end; u.onerror = end;
     speechSynthesis.speak(u);

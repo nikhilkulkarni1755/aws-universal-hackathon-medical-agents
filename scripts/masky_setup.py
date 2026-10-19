@@ -12,12 +12,13 @@ STYLE = "friendly illustrated portrait, head and shoulders, hospital setting, so
 
 # name: (voice name, portrait, personality). Order = priority if the tier caps avatars.
 AGENTS = {
+    "Quinn": ("Seasoned Midwestern Actress", "steady middle-aged charge nurse, lanyard, teal scrubs", "You are Quinn, the charge nurse. Steady, brief, in charge."),
+    "Wren": ("Cheerful Canadian", "efficient friendly unit clerk holding a clipboard", "You are Wren, the chart clerk. Quick, cheerful and exact about code status and allergies."),
     "Iris": ("Mrs. Pembroke", "strict skeptical safety auditor, round glasses, arms crossed", "You are Iris, a strict, skeptical safety auditor. Slow, low, exact. You reject anything that is a diagnosis or a treatment order."),
     "Vera": ("Inspiring Woman", "decisive senior nurse, confident, navy scrubs", "You are Vera, a decisive risk validator. You ask follow-up questions before you escalate."),
     "Theo": ("Deep Male Conversational Voice", "calm data analyst in scrubs, glasses, tablet with charts", "You are Theo, a calm trend analyst. Numbers first, no drama."),
     "Mina": ("Dr. Marina Oliveira", "careful precise clinical pharmacist, white coat", "You are Mina, a careful medication safety pharmacist. Precise and exact."),
     "Sam": ("Warm American Female", "warm friendly nurse smiling, clipboard", "You are Sam, a warm and clear SBAR writer who briefs the incoming nurse."),
-    "Quinn": ("Seasoned Midwestern Actress", "steady middle-aged charge nurse, lanyard, teal scrubs", "You are Quinn, the charge nurse. Steady, brief, in charge."),
     "Felix": ("Male English Actor", "formal physician liaison, white coat and tie", "You are Felix, formal and concise, writing for physicians."),
     "Echo": ("Soft Male Conversationalist", "young attentive nurse wearing a headset", "You are Echo, a quiet attentive listener who repeats things back."),
     "Lens": ("Fastidious Robo-Butler", "sharp-eyed pharmacy tech with a magnifying loupe", "You are Lens, sharp-eyed, literal and terse about medication labels."),

@@ -5,8 +5,9 @@ import json
 import re
 
 from .agents import (echo_claims, echo_notes, dailymed, lens, lens_signal, load_patients, mina, theo,
-                     urine_trend, vera, verbal_conflict)
+                     urine_trend, vera, verbal_conflict, wren)
 from .iris import check_form, check_text, verdict
+from .personality import quip
 from .sandbox import run_script, theo_script
 from .writers import felix_form, sam_draft
 
@@ -21,13 +22,23 @@ def _cites(text):
     return re.findall(r"\[[^\]]+\]", text)
 
 
+def assign(emit, agent, task):
+    emit("Quinn", agent, f"{agent}, {task} {quip('Quinn', 'to_' + agent)}".strip())
+
+
 def quinn_open(ctx, emit):
-    emit("Quinn", "all", "Loading 4 West. Echo, Theo, Lens and Mina, start your checks.")
+    emit("Quinn", "all", f"Loading 4 West. Four patients, handoff at 19:00. Let's work through it. {quip('Quinn', 'open')}")
+
+
+def wren_step(ctx, emit):
+    assign(emit, "Wren", "give me the census.")
+    emit("Wren", "Quinn", "Census for 4 West: " + "; ".join(wren(p) for p in ctx["pts"].values()) + ". " + quip("Wren", "census"), ["[Chart]"])
 
 
 def echo_step(ctx, emit):
+    assign(emit, "Echo", "capture the outgoing nurse's handoff and flag the day-shift notes.")
     status = next(c for c in ctx["claims"] if c["bed"] == "402" and c["type"] == "status")
-    emit("Echo", "Quinn", f"Verbal handoff captured. For 402 the outgoing nurse said: {status['claim'].split(': ', 1)[-1]}",
+    emit("Echo", "Quinn", f"Verbal handoff captured. For 402 the outgoing nurse said: {status['claim'].split(': ', 1)[-1]}. {quip('Echo', 'verbal')}",
          [status["citation"]])
     for bed, p in ctx["pts"].items():
         notes = echo_notes(p)
@@ -38,6 +49,7 @@ def echo_step(ctx, emit):
 
 
 def theo_step(ctx, emit):
+    assign(emit, "Theo", "run the vital, lab and intake/output trends.")
     charts, badge = {}, ""
     if not ctx["quiet"]:  # skip the sandbox when Theo only runs silently as an upstream step
         script, source = theo_script()
@@ -55,30 +67,36 @@ def theo_step(ctx, emit):
         shown = []
         for src in dict.fromkeys(s["source"] for s in found):
             shown += [s for s in found if s["source"] == src][:2]
-        emit("Theo", "Vera", f"{bed}: " + "; ".join(s["text"] for s in shown) + ".",
+        emit("Theo", "Vera", f"{bed}: " + "; ".join(s["text"] for s in shown) + ". " + (quip("Theo", "trend") if bed == "402" else ""),
              list(dict.fromkeys(s["citation"] for s in shown)), att)
 
 
 def lens_step(ctx, emit):
+    assign(emit, "Lens", "check the IV bag labels against the MAR.")
     for bed, p in ctx["pts"].items():
         res = lens(p)
         if res:
             ctx["signals"] += lens_signal(p, res)
-            emit("Lens", "Mina", f"{bed}: label is a {res['classification']}. {res['finding']}", [res["citation"]],
+            emit("Lens", "Mina", f"{bed}: label is a {res['classification']}. {res['finding']} "
+                 + (quip("Lens", "mismatch") if res["classification"] == "mismatch" else ""), [res["citation"]],
                  {"type": "image", "src": f"/assets/labels/{res['image']}"})
 
 
 def mina_step(ctx, emit):
+    assign(emit, "Mina", "check meds, interactions and anything missed.")
     for bed, p in ctx["pts"].items():
         found = mina(p, ctx["claims"])
         ctx["signals"] += found
         for s in found:
-            att = {"type": "text", "title": "DailyMed digoxin label (cached)", "text": dailymed()["warning"]} \
+            label = dailymed()
+            att = {"type": "text", "title": f"DailyMed digoxin label ({label['badge']})", "text": label["warning"]} \
                 if "DailyMed" in s["citation"] else None
-            emit("Mina", "Vera", f"{bed}: {s['text']}.", _cites(s["citation"]), att)
+            joke = quip("Mina", "digoxin" if "Digoxin" in s["text"] else "enoxaparin")
+            emit("Mina", "Vera", f"{bed}: {s['text']}. {joke}", _cites(s["citation"]), att)
 
 
 def vera_step(ctx, emit):
+    assign(emit, "Vera", "rank the unit now that Theo, Mina and Lens are in.")
     ctx["ranking"] = ranking = vera(ctx["signals"])
     top = ranking[0]
     emit("Vera", "Theo", f"Before I escalate {top['bed']}, confirm its urine output trend.")
@@ -86,12 +104,13 @@ def vera_step(ctx, emit):
     emit("Theo", "Vera", f"{top['bed']} urine: " + ", ".join(f"{ml} mL" for _, ml in io) + " across the day shift.",
          [f"[I/O {io[-1][0].replace('-', '–')}]"])
     conflict = verbal_conflict(ctx["pts"][top["bed"]], ctx["claims"])
-    emit("Vera", "Quinn", f"{TIERS_LINE} " + ", ".join(f"{r['bed']} {r['tier']}" for r in ranking) + ".",
+    emit("Vera", "Quinn", f"{TIERS_LINE} " + ", ".join(f"{r['bed']} {r['tier']}" for r in ranking) + ". " + quip("Vera", "rank"),
          [conflict["citation"]] if conflict else [])
 
 
 def sam_step(ctx, emit):
     """Sam drafts, Iris audits. The 402 first draft is a labelled red-team draft with a treatment order."""
+    assign(emit, "Sam", "draft the SBARs in Vera's order. Iris will audit them.")
     ctx["drafts"] = {}
     for r in ctx["ranking"]:
         bed, p = r["bed"], ctx["pts"][r["bed"]]
@@ -99,15 +118,16 @@ def sam_step(ctx, emit):
         draft = sam_draft(bed, red_team=bed == "402")
         if bed == "402":
             emit("Sam", "Iris", f"First draft for {bed} (red-team draft).", [], {"type": "sbar", "bed": bed, "sbar": draft})
-            emit("Iris", "Sam", verdict(check_text(draft, *args))["text"])
+            emit("Iris", "Sam", f"{verdict(check_text(draft, *args))['text']}. {quip('Iris', 'reject')}")
             draft = sam_draft(bed)
             emit("Sam", "Iris", f"Rewritten {bed} as an escalation.", [], {"type": "sbar", "bed": bed, "sbar": draft})
-            emit("Iris", "Sam", verdict(check_text(draft, *args))["text"])
+            emit("Iris", "Sam", f"{verdict(check_text(draft, *args))['text']} {quip('Iris', 'pass')}")
         ctx["drafts"][bed] = draft
-    emit("Sam", "Iris", "Drafts for the other beds are ready.")
+    emit("Sam", "Iris", f"Drafts for the other beds are ready. {quip('Sam', 'ready')}")
 
 
 def felix_step(ctx, emit):
+    assign(emit, "Felix", "prepare the provider forms.")
     ctx["sbars"], ctx["forms"] = {}, {}
     for r in ctx["ranking"]:
         bed, p, draft = r["bed"], ctx["pts"][r["bed"]], ctx["drafts"][r["bed"]]
@@ -115,16 +135,16 @@ def felix_step(ctx, emit):
         bad = check_text(draft, r["tier"], p["code_status"], p["allergies"]) + check_form(form)
         ctx["sbars"][bed] = {"sections": draft, "iris": verdict(bad)}
         ctx["forms"][bed] = form
-    emit("Felix", "Iris", "Provider forms are drafted for all four beds.", [], {"type": "form", "forms": ctx["forms"]})
-    emit("Iris", "Quinn", "All drafts and forms: " + ("pass." if all(s["iris"]["ok"] for s in ctx["sbars"].values()) else "REJECTED."))
+    emit("Felix", "Iris", f"Provider forms are drafted for all four beds. {quip('Felix', 'forms')}", [], {"type": "form", "forms": ctx["forms"]})
+    emit("Iris", "Quinn", "All drafts and forms: " + ("pass." if all(s["iris"]["ok"] for s in ctx["sbars"].values()) else "REJECTED.") + " " + quip("Iris", "all"))
 
 
 def quinn_close(ctx, emit):
-    emit("Quinn", "RN", "Ready for RN review. Nothing leaves until you approve.")
+    emit("Quinn", "RN", f"Ready for RN review. Nothing leaves until you approve. {quip('Quinn', 'close')}")
 
 
 # (agent, step). "iris" has no step of its own: its guardrail demo is Sam's step. Quinn opens and closes.
-STEPS = [("quinn", quinn_open), ("echo", echo_step), ("theo", theo_step), ("lens", lens_step), ("mina", mina_step),
+STEPS = [("quinn", quinn_open), ("wren", wren_step), ("echo", echo_step), ("theo", theo_step), ("lens", lens_step), ("mina", mina_step),
          ("vera", vera_step), ("sam", sam_step), ("felix", felix_step), ("quinn", quinn_close)]
 ALIASES = {"iris": "sam"}
 AGENTS = sorted({a for a, _ in STEPS} | set(ALIASES))
@@ -133,6 +153,11 @@ AGENTS = sorted({a for a, _ in STEPS} | set(ALIASES))
 def run(emit, only=None):
     """emit(sender, to, text, citations=(), attachment=None). With `only`, just that agent's events are emitted."""
     only = ALIASES.get(only, only)
+    send = emit
+
+    def emit(sender, to, text, *rest):  # quips are optional, so trim the gaps they leave
+        send(sender, to, text.strip(), *rest)
+
     ctx = {"pts": {p["bed"]: p for p in load_patients()}, "claims": echo_claims(), "signals": []}
     for agent, step in STEPS:
         ctx["quiet"] = only not in (None, agent)
@@ -143,23 +168,78 @@ def run(emit, only=None):
             "hashes": {b: digest(ctx["sbars"][b]["sections"], ctx["forms"][b]) for b in ctx["sbars"]}}
 
 
+ROUTES = [  # first match wins; Quinn handles anything else herself
+    ("Iris", r"reject|audit|guardrail|rule|cr-\d"),
+    ("Vera", r"rank|above|below|first|priority|escalat|tier|top"),
+    ("Wren", r"allerg|code status|dnr|full code|census|diagnos|how many"),
+    ("Mina", r"\bmeds?\b|medication|digoxin|enoxaparin|dose|interaction|missed"),
+    ("Lens", r"label|bag|photo"),
+    ("Theo", r"vital|trend|urine|output|temp|heart rate|\bhr\b|pressure|\blabs?\b|lactate|potassium|wbc"),
+    ("Echo", r"verbal|said|outgoing|handoff|note"),
+    ("Felix", r"form|provider|page|doctor"),
+    ("Sam", r"sbar|draft|summar"),
+]
+
+
+def route(question):
+    return next((agent for agent, pattern in ROUTES if re.search(pattern, question, re.I)), "Quinn")
+
+
+def _facts(signals):
+    return ("; ".join(s["text"].rstrip(".") for s in signals) + "." if signals else "nothing flagged."), \
+        list(dict.fromkeys(s["citation"] for s in signals))
+
+
+def _vera(bed, row, result):
+    by_source = {}
+    for s in sorted(row["signals"], key=lambda s: (s["kind"] != "condition", s["severity"] != "high")):
+        by_source.setdefault(s["source"], s)
+    text, cites = _facts(list(by_source.values())[:4])
+    return f"{row['tier']}: {row['condition']} condition signals, {row['safety']} safety items; {text}", cites
+
+
+def _by_agent(name):
+    return lambda bed, row, result: _facts([s for s in row["signals"] if s["agent"] == name])
+
+
+def _echo(bed, row, result):
+    claims = [c for c in echo_claims() if c["bed"] == bed and c["type"] == "status"]
+    text, cites = _facts([s for s in row["signals"] if s["agent"] == "Echo"])
+    return " ".join(c["claim"] + "." for c in claims) + " Notes: " + text, [c["citation"] for c in claims] + cites
+
+
+def _sam(bed, row, result):
+    a = result["sbars"][bed]["sections"]["A"]
+    return a, re.findall(r"\[[^\]]+\]", a)
+
+
+def _felix(bed, row, result):
+    form = result["forms"][bed]
+    return "Ask: " + form["ask"], form["evidence"]
+
+
+ANSWERERS = {
+    "Vera": _vera, "Theo": _by_agent("Theo"), "Mina": _by_agent("Mina"), "Lens": _by_agent("Lens"), "Echo": _echo,
+    "Sam": _sam, "Felix": _felix,
+    "Iris": lambda bed, row, result: (result["sbars"][bed]["iris"]["text"], []),
+    "Wren": lambda bed, row, result: (wren(next(p for p in load_patients() if p["bed"] == bed)) + ".", ["[Chart]"]),
+}
+
+
 def answer(question, result):
-    """Quinn answers a nurse question from cited evidence only (no new analysis)."""
+    """Quinn routes the question to the agent who owns it; that agent answers from cited evidence only."""
+    agent = route(question)
     if not result:
-        return {"text": "Run the handoff first.", "citations": []}
+        return {"agent": "Quinn", "text": "Run the handoff first.", "citations": []}
+    if agent == "Quinn":
+        return {"agent": "Quinn", "text": "I can route questions on rankings, trends, meds, labels, the verbal handoff, "
+                "SBARs, forms, allergies or the safety rules. Which bed?", "citations": []}
     rows = {r["bed"]: r for r in result["ranking"]}
-    beds = [b for b in re.findall(r"\b40[1-4]\b", question) if b in rows]
-    if not beds:
-        return {"text": "Ask about a bed, for example: why is 402 above 403?", "citations": []}
+    beds = list(dict.fromkeys(b for b in re.findall(r"\b40[1-4]\b", question) if b in rows))
+    beds = beds or (list(rows) if agent == "Wren" else [result["ranking"][0]["bed"]])
     parts, cites = [], []
-    for bed in dict.fromkeys(beds[:2]):
-        r = rows[bed]
-        ordered = sorted(r["signals"], key=lambda s: (s["kind"] != "condition", s["severity"] != "high"))
-        by_source = {}
-        for s in ordered:
-            by_source.setdefault(s["source"], s)
-        top = list(by_source.values())[:4]
-        parts.append(f"{bed} is {r['tier']}: {r['condition']} condition signals, {r['safety']} safety items; "
-                     + "; ".join(s["text"].rstrip(".") for s in top) + ".")
-        cites += [s["citation"] for s in top]
-    return {"text": " ".join(parts), "citations": list(dict.fromkeys(cites))}
+    for bed in beds[:2] if agent != "Wren" else beds:
+        text, found = ANSWERERS[agent](bed, rows[bed], result)
+        parts.append(text if agent == "Wren" else f"{bed}: {text}")
+        cites += found
+    return {"agent": agent, "text": " ".join(parts + [quip(agent, "answer")]).strip(), "citations": list(dict.fromkeys(cites))}
