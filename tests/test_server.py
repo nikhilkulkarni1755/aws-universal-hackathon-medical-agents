@@ -1,3 +1,4 @@
+import json
 import os
 import time
 
@@ -43,3 +44,24 @@ def test_single_agent_demo_leaves_no_result(client):
     state = client.get("/api/state").json()
     assert state["result"] is None and {e["from"] for e in state["events"] if "from" in e} == {"Quinn", "Theo"}
     assert client.post("/api/run?agent=nobody").status_code == 404
+
+
+def test_stream_delivers_events_while_a_run_is_in_progress(client):
+    """Regression: the stream once held the lock while waiting, so the run never emitted a single event."""
+    assert client.post("/api/run?agent=wren").status_code == 200
+    seen = []
+    for chunk in server.event_stream(server.STATE["start"]):
+        if chunk.startswith("data:"):
+            seen.append(json.loads(chunk[5:]))
+            if seen[-1].get("done"):
+                break
+        assert len(seen) < 50
+    assert any(e.get("from") == "Wren" for e in seen)
+    assert client.post("/api/run?agent=wren").status_code == 200  # no stuck "run in progress"
+
+
+def test_a_crashed_run_does_not_wedge_the_server(client, monkeypatch):
+    monkeypatch.setattr(server.pipeline, "run", lambda emit, agent=None: 1 / 0)
+    client.post("/api/run")
+    _wait()
+    assert server.STATE["running"] is False

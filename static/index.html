@@ -82,7 +82,11 @@ function fill(el, text) {              // text with citation chips, built with D
     CHIP.lastIndex = 0;
   });
 }
-function avatar(el, name) { el.textContent = name[0]; el.style.background = personas[name]?.color || '#555'; }
+function avatar(el, name) {            // Masky portrait when the agent has one, else a coloured initial
+  const p = personas[name], img = p?.image;
+  el.textContent = img ? '' : name[0];
+  el.style.background = img ? `center / cover url("${img}")` : (p?.color || '#555');
+}
 
 async function init() {
   const a = await (await fetch('/api/agents')).json();
@@ -119,7 +123,7 @@ async function speakText(ev) {         // Masky voice when the agent has one (wa
 function show(ev) {
   const p = personas[ev.from] || { color: '#555', role: 'Incoming RN' };
   document.querySelectorAll('.tile').forEach((t) => t.classList.toggle('on', t.id === 'tile-' + ev.from));
-  avatar($('big'), ev.from); $('big').style.background = p.color; $('big').style.borderColor = '#fff';
+  avatar($('big'), ev.from); $('big').style.borderColor = '#fff';
   $('who').textContent = `${ev.from} → ${ev.to}`; $('role').textContent = p.role;
   const cap = $('caption'); fill(cap, ev.text + ' ' + ev.citations.join(' '));
   const d = document.createElement('div'); fill(d, `${ev.from} → ${ev.to}: ${ev.text} ${ev.citations.join(' ')}`);

@@ -19,7 +19,7 @@ for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists()
     os.environ.setdefault(key.strip(), value.strip())
 
 app = FastAPI()
-EVENTS, STATE = [], {"result": None, "running": False}
+EVENTS, STATE = [], {"result": None, "running": False, "start": 0}  # start = index of the current run's first event
 CV = threading.Condition()
 AUDIT = ROOT / "audit.jsonl"
 PACE_S = float(os.environ.get("EVENT_PACE_S", "0.4"))
@@ -46,16 +46,18 @@ def emit(sender, to, text, citations=(), attachment=None):
 
 
 def _worker(agent):
-    STATE["result"] = pipeline.run(emit, agent)
-    STATE["running"] = False
-    with CV:
-        EVENTS.append({"id": len(EVENTS), "done": True})
-        CV.notify_all()
+    try:
+        STATE["result"] = pipeline.run(emit, agent)
+    finally:  # a crashed run must never leave the server stuck on "run in progress"
+        STATE["running"] = False
+        with CV:
+            EVENTS.append({"id": len(EVENTS), "done": True})
+            CV.notify_all()
 
 
 @app.get("/api/agents")
 def agents():
-    return {"agents": [{**p, "masky": masky.has_voice(p["name"])} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
+    return {"agents": [{**p, "masky": masky.has_voice(p["name"]), "image": masky.image(p["name"])} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
 
 
 @app.post("/api/run")
@@ -66,31 +68,33 @@ def run(agent: str | None = None):
     if STATE["running"]:
         raise HTTPException(409, "run in progress")
     with CV:
-        EVENTS.clear()
+        STATE["start"] = len(EVENTS)
     STATE.update(result=None, running=True)
     threading.Thread(target=_worker, args=(agent,), daemon=True).start()
     return {"started": True}
 
 
+def event_stream(i):
+    """Server-sent events from index i on. Never yield while holding the lock, or emit() blocks and the run freezes."""
+    while True:
+        with CV:
+            if i >= len(EVENTS):
+                CV.wait(timeout=15)
+            batch, i = EVENTS[i:], len(EVENTS)
+        if not batch:
+            yield ": keepalive\n\n"
+        for e in batch:
+            yield f"data: {json.dumps(e)}\n\n"
+
+
 @app.get("/api/stream")
 def stream():
-    def gen():
-        i = 0
-        while True:
-            with CV:
-                while i >= len(EVENTS):
-                    CV.wait(timeout=15)
-                    if i >= len(EVENTS):
-                        yield ": keepalive\n\n"
-                batch, i = EVENTS[i:], len(EVENTS)
-            for e in batch:
-                yield f"data: {json.dumps(e)}\n\n"
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(STATE["start"]), media_type="text/event-stream")
 
 
 @app.get("/api/state")
 def state():
-    return {"result": STATE["result"], "running": STATE["running"], "events": EVENTS}
+    return {"result": STATE["result"], "running": STATE["running"], "events": EVENTS[STATE["start"]:]}
 
 
 @app.post("/api/ask")
