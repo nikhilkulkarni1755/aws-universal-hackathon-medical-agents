@@ -30,7 +30,7 @@ One function per service: live is the default, with a cached copy as an automati
 | 7 | Masky audio into the huddle | **done**: server renders each line in the agent's voice (6 s cold, 1.3 s repeat) and the page plays it; browser voice if none | `handoff/masky.py`, `server.py`, `static/index.html` | cache warm-up script still to do |
 | 7b | Quinn routes questions to the owning agent; Wren (chart clerk) added | **done, tested** | `handoff/pipeline.py` (`ROUTES`, `ANSWERERS`) | `pytest` green |
 | 8 | Avatar images in tiles (replace initials), idle loops | not started | `static/index.html` | tiles show Masky portraits |
-| 9 | Theo on Tenki sandbox (outbound off) + local fallback | **done, verified live** (template script; Claude-written script needs `FLATKEY_API_KEY`) | `handoff/sandbox.py`, `llm.py` | badge reads "tenki sandbox · <source> script · Ns" |
+| 9 | Theo's program on Tenki (outbound off): gathers vitals, labs, I/O, notes; flags findings; writes a non-diagnostic impression. A Claude re-implementation is accepted only if its findings equal the trusted template's | **done, verified live** (Claude path needs `FLATKEY_API_KEY`) | `handoff/sandbox.py`, `llm.py` | badge reads "tenki sandbox · <source> script · Ns" |
 | 10 | Claude-written SBAR (live) with template fallback | not started | `handoff/writers.py` | Iris still passes; refusal falls back |
 | 11 | DailyMed live fetch with cached fallback | **done, verified live** | `handoff/agents.py` | attachment title says "live from DailyMed" |
 | 12 | n8n workflow (webhook to Slack/Discord + audit row) | not started | n8n cloud + `N8N_WEBHOOK_URL` | page appears in channel on Approve |

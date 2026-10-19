@@ -19,49 +19,18 @@ PERSONAS = [
 ]
 
 NOTE_PATTERN = re.compile(r"confus|not herself|cramp|pain [7-9]/10", re.I)
-VITAL_LIMITS = (
-    ("temp_c", "Temp", lambda x: x >= 38.0),
-    ("hr", "HR", lambda x: x >= 100),
-    ("rr", "RR", lambda x: x >= 20),
-    ("sbp", "SBP", lambda x: x <= 105),
-    ("spo2", "SpO2", lambda x: x <= 94),
-)
-
-
 def load_patients():
     return json.loads((ROOT / "data" / "patients.json").read_text())["patients"]
 
 
-def _sig(p, source, text, citation, kind="condition", severity="low", agent=""):
+def sig(p, source, text, citation, kind="condition", severity="low", agent=""):
     return {"bed": p["bed"], "source": source, "text": text, "citation": citation,
             "kind": kind, "severity": severity, "agent": agent}
-
-
-def _span(t):
-    return t.replace("-", "–")
 
 
 def wren(p):
     """Chart clerk: code status and allergies straight from the chart."""
     return f"{p['bed']} {p['code_status']}, allergy {', '.join(p['allergies'])}"
-
-
-def theo(p):
-    """Trend analyst: condition signals from vitals, labs and I/O."""
-    first, last = p["vitals"][0], p["vitals"][-1]
-    hours = int(last["time"][:2]) - int(first["time"][:2])
-    cite = f"[Vitals {first['time']}–{last['time']}]"
-    out = [_sig(p, "Vitals", f"{label} {first[k]} to {last[k]} over {hours} h", cite, agent="Theo")
-           for k, label, bad in VITAL_LIMITS if bad(last[k])]
-    for lab in p["labs"]:
-        if not lab["ref_low"] <= lab["value"] <= lab["ref_high"]:
-            out.append(_sig(p, "Lab", f"{lab['name']} {lab['value']} {lab['unit']}".strip(),
-                            f"[Lab {lab['name']} {lab['time']}]", agent="Theo"))
-    io = p["intake_output"]
-    if io[-1]["urine_ml"] < 0.5 * io[0]["urine_ml"]:
-        out.append(_sig(p, "I/O", f"Urine {io[0]['urine_ml']} to {io[-1]['urine_ml']} mL",
-                        f"[I/O {_span(io[-1]['time'])}]", agent="Theo"))
-    return out
 
 
 def urine_trend(p):
@@ -71,7 +40,7 @@ def urine_trend(p):
 
 def echo_notes(p):
     """Listener: condition signals from day-shift nursing notes."""
-    return [_sig(p, "Note", n["text"], f"[Note {n['time']}]", agent="Echo")
+    return [sig(p, "Note", n["text"], f"[Note {n['time']}]", agent="Echo")
             for n in p["notes"] if NOTE_PATTERN.search(n["text"])]
 
 
@@ -103,7 +72,7 @@ def mina(p, claims):
     pot = next((l for l in p["labs"] if l["name"] == "Potassium"), None)
     dig = next((m for m in p["meds"] if m["drug"].startswith("Digoxin")), None)
     if dig and pot and pot["value"] < pot["ref_low"]:
-        out.append(_sig(p, "MAR", f"Digoxin due {dig['next_due']} with potassium {pot['value']} {pot['unit']} "
+        out.append(sig(p, "MAR", f"Digoxin due {dig['next_due']} with potassium {pot['value']} {pot['unit']} "
                         "and no replacement ordered",
                         f"[Lab Potassium {pot['time']}] [MAR Digoxin] {dailymed()['citation']}",
                         "safety", "high", "Mina"))
@@ -112,7 +81,7 @@ def mina(p, claims):
         if m["status"] == "not_documented":
             name = m["drug"].split()[0]
             said = "mentioned" if name.lower() in verbal else "not mentioned"
-            out.append(_sig(p, "MAR", f"{name} due {m['next_due']} not documented and {said} at handoff",
+            out.append(sig(p, "MAR", f"{name} due {m['next_due']} not documented and {said} at handoff",
                             f"[MAR {name}] [Verbal 18:55]", "safety", "high", "Mina"))
     return out
 
@@ -126,7 +95,7 @@ def lens(p):
 def lens_signal(p, res):
     if not res or res["classification"] == "match":
         return []
-    return [_sig(p, "Label", res["finding"], res["citation"], "safety", res["severity"], "Lens")]
+    return [sig(p, "Label", res["finding"], res["citation"], "safety", res["severity"], "Lens")]
 
 
 def verbal_conflict(p, claims):
@@ -135,11 +104,11 @@ def verbal_conflict(p, claims):
                  and re.search(r"fine|great|stable", c["claim"], re.I)), None)
 
 
-def vera(signals):
+def vera(signals, beds=None):
     """Risk validator (PLACEHOLDER RULE ONLY): escalate on 4+ condition signals from 3+ sources.
     Safety items put a patient in Act this shift. Order: tier, high-severity safety count, condition count."""
     rows = []
-    for bed in sorted({s["bed"] for s in signals}):
+    for bed in beds or sorted({s["bed"] for s in signals}):  # every bed is ranked, even one with no findings
         mine = [s for s in signals if s["bed"] == bed]
         cond = [s for s in mine if s["kind"] == "condition"]
         safety = [s for s in mine if s["kind"] == "safety"]

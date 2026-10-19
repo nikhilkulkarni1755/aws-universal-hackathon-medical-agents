@@ -4,11 +4,11 @@ import hashlib
 import json
 import re
 
-from .agents import (echo_claims, echo_notes, dailymed, lens, lens_signal, load_patients, mina, theo,
+from .agents import (echo_claims, echo_notes, dailymed, lens, lens_signal, load_patients, mina, sig,
                      urine_trend, vera, verbal_conflict, wren)
 from .iris import check_form, check_text, verdict
 from .personality import quip
-from .sandbox import run_script, theo_script
+from .sandbox import run_local, run_script, theo_script
 from .writers import felix_form, sam_draft
 
 TIERS_LINE = "Cross-source validation (patent pending) ranks the unit."
@@ -49,25 +49,32 @@ def echo_step(ctx, emit):
 
 
 def theo_step(ctx, emit):
-    charts, badge = {}, ""
-    if not ctx["quiet"]:  # skip the sandbox when this only runs silently as an upstream step
+    """Theo's program runs in a Tenki sandbox: gather vitals, labs, intake/output and notes per bed, flag the abnormal
+    findings, and write a pattern impression (never a diagnosis)."""
+    payloads = list(ctx["pts"].values())
+    if ctx["quiet"]:  # upstream of another agent's demo: no sandbox, same trusted program locally
+        runs, badge = run_local(payloads), ""
+    else:
+        emit("Wren", "Vera", "Sending every bed's vitals, labs, intake and output, and notes to the Tenki sandbox.")
         script, source = theo_script()
-        runs, badge = run_script(script, list(ctx["pts"].values()), source)
-        charts = dict(zip(ctx["pts"], runs))
-    for bed, p in ctx["pts"].items():
-        found = theo(p)
+        runs, badge = run_script(script, payloads, source)
+    top = max(runs, key=lambda r: len(r["signals"]))
+    for (bed, p), run in zip(ctx["pts"].items(), runs):
+        found = [sig(p, s["source"], s["text"], s["citation"], agent="Theo") for s in run["signals"]]
         ctx["signals"] += found
         if not found:
             continue
         att = None
-        if charts and bed == "402":
-            hr = charts[bed]["trends"]["hr"]
-            att = {"type": "svg", "title": f"402 HR {hr['first']} to {hr['last']}", "svg": charts[bed]["svg"], "badge": badge}
+        if run is top:
+            hr = run["trends"]["hr"]
+            att = {"type": "svg", "title": f"{bed} HR {hr['first']} to {hr['last']}", "svg": run["svg"], "badge": badge}
         shown = []
         for src in dict.fromkeys(s["source"] for s in found):
             shown += [s for s in found if s["source"] == src][:2]
-        emit("Wren", "Vera", f"{bed}: " + "; ".join(s["text"] for s in shown) + ". " + (quip("Wren", "trend") if bed == "402" else ""),
+        emit("Wren", "Vera", f"{bed}: " + "; ".join(s["text"] for s in shown) + ".",
              list(dict.fromkeys(s["citation"] for s in shown)), att)
+        if run is top:
+            emit("Wren", "Vera", f"Impression for {bed}: {run['impression']} {quip('Wren', 'trend')}")
 
 
 def lens_step(ctx, emit):
@@ -96,7 +103,7 @@ def mina_step(ctx, emit):
 
 def vera_step(ctx, emit):
     assign(emit, "Vera", "rank the unit, then draft the SBARs. Iris will audit them.")
-    ctx["ranking"] = ranking = vera(ctx["signals"])
+    ctx["ranking"] = ranking = vera(ctx["signals"], list(ctx["pts"]))
     top = ranking[0]
     emit("Vera", "Wren", f"Before I escalate {top['bed']}, confirm its urine output trend.")
     io = urine_trend(ctx["pts"][top["bed"]])
