@@ -1,0 +1,27 @@
+{
+  "_notice": "SYNTHETIC. Cached transcript for offline demo mode. Timestamps are for a ~30 s reading of handoff_1855_script.md; re-time them after recording.",
+  "source": "verbal",
+  "recorded_at": "18:55",
+  "speaker": "RN Day (outgoing)",
+  "audio": "handoff_1855.m4a",
+  "segments": [
+    {"start": 0.0, "end": 1.6, "text": "Okay, quick handoff for 4 West."},
+    {"start": 1.6, "end": 7.4, "text": "401, Mr. Hale, knee replacement, day two. Doing great. Walked with PT, pain's controlled on the PRN oxy, last dose at four-thirty."},
+    {"start": 7.4, "end": 13.8, "text": "402, Mrs. Liu, UTI on ceftriaxone. She's fine, honestly it's just the UTI. She was a little warm this afternoon, so I gave Tylenol at three-thirty."},
+    {"start": 13.8, "end": 18.9, "text": "403, Mr. Okafor, heart failure. Diuresing really well, down one point four kilos. Lasix and dig are both due at nine."},
+    {"start": 18.9, "end": 25.2, "text": "404, Mrs. Evans, hip fracture. OR at eight tomorrow, NPO after midnight. High fall risk, bed alarm's on. Pain's been rough with repositioning."},
+    {"start": 25.2, "end": 27.5, "text": "That's everybody. Call me if you need anything."}
+  ],
+  "claims": [
+    {"patient": "A", "bed": "401", "type": "status", "claim": "Doing great; pain controlled on PRN oxycodone, last 16:30", "citation": "[Verbal 18:55 @0:02]"},
+    {"patient": "A", "bed": "401", "type": "activity", "claim": "Walked with PT", "citation": "[Verbal 18:55 @0:04]"},
+    {"patient": "B", "bed": "402", "type": "status", "claim": "Stable: \"She's fine, honestly it's just the UTI\"", "citation": "[Verbal 18:55 @0:09]"},
+    {"patient": "B", "bed": "402", "type": "med_given", "claim": "Acetaminophen given 15:30 for feeling warm", "citation": "[Verbal 18:55 @0:11]"},
+    {"patient": "C", "bed": "403", "type": "status", "claim": "Diuresing well, down 1.4 kg", "citation": "[Verbal 18:55 @0:15]"},
+    {"patient": "C", "bed": "403", "type": "med_due", "claim": "Furosemide and digoxin due 21:00", "citation": "[Verbal 18:55 @0:17]"},
+    {"patient": "D", "bed": "404", "type": "task", "claim": "OR 08:00 tomorrow, NPO after midnight", "citation": "[Verbal 18:55 @0:20]"},
+    {"patient": "D", "bed": "404", "type": "safety", "claim": "High fall risk, bed alarm on", "citation": "[Verbal 18:55 @0:22]"},
+    {"patient": "D", "bed": "404", "type": "status", "claim": "Pain rough with repositioning", "citation": "[Verbal 18:55 @0:24]"}
+  ],
+  "_demo_expectation": "Echo only extracts claims. Comparing claims against the chart (402 'fine' vs. fever, tachycardia, falling BP and urine, confusion) is Vera's job and must use the placeholder rule only."
+}

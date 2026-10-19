@@ -1,0 +1,164 @@
+{
+  "_notice": "SYNTHETIC DATA ONLY. No real patient information. Shaped loosely after FHIR Observation/MedicationAdministration/DocumentReference.",
+  "unit": "4 West Med-Surg",
+  "shift_change": "2026-10-19T19:00",
+  "verbal_handoff": {
+    "time": "18:55",
+    "speaker": "RN Day (outgoing)",
+    "script": "assets/verbal/handoff_1855_script.md",
+    "audio": "assets/verbal/handoff_1855.m4a (record from the script; not included)",
+    "cached_transcript": "assets/verbal/handoff_1855_transcript.json"
+  },
+  "expected_ranking": {
+    "_note": "Demo acceptance test. Placeholder rule: only CONDITION signals (vitals, labs, I/O, notes or verbal claims about the patient's state) count toward Escalate (4+ signals from 3+ sources). SAFETY items (missed doses, interactions, label mismatches, unordered replacements) place a patient in Act this shift. Within a tier, sort by number of high-severity safety items, then by condition-signal count.",
+    "order": ["B", "C", "D", "A"],
+    "tiers": {"B": "Escalate", "C": "Act this shift", "D": "Act this shift", "A": "Routine"}
+  },
+  "patients": [
+    {
+      "id": "A",
+      "bed": "401",
+      "name": "Robert Hale",
+      "age": 68,
+      "sex": "M",
+      "diagnosis": "Post-op day 2, right total knee arthroplasty",
+      "code_status": "Full code",
+      "allergies": ["NKDA"],
+      "vitals": [
+        {"time": "07:00", "temp_c": 36.8, "hr": 78, "rr": 16, "sbp": 132, "dbp": 78, "spo2": 97},
+        {"time": "11:00", "temp_c": 36.9, "hr": 80, "rr": 16, "sbp": 130, "dbp": 76, "spo2": 97},
+        {"time": "15:00", "temp_c": 37.0, "hr": 76, "rr": 16, "sbp": 128, "dbp": 74, "spo2": 98},
+        {"time": "18:00", "temp_c": 36.9, "hr": 77, "rr": 15, "sbp": 131, "dbp": 77, "spo2": 98}
+      ],
+      "labs": [
+        {"time": "06:00", "name": "Hemoglobin", "value": 11.2, "unit": "g/dL", "ref_low": 13.5, "ref_high": 17.5},
+        {"time": "06:00", "name": "WBC", "value": 8.9, "unit": "K/uL", "ref_low": 4.0, "ref_high": 11.0},
+        {"time": "06:00", "name": "Potassium", "value": 4.1, "unit": "mmol/L", "ref_low": 3.5, "ref_high": 5.0}
+      ],
+      "intake_output": [
+        {"time": "07:00-11:00", "urine_ml": 260},
+        {"time": "11:00-15:00", "urine_ml": 240},
+        {"time": "15:00-18:00", "urine_ml": 210}
+      ],
+      "meds": [
+        {"drug": "Oxycodone 5 mg PO", "schedule": "q4h PRN pain", "last_given": "16:30", "next_due": null, "status": "given"},
+        {"drug": "Enoxaparin 40 mg SC", "schedule": "daily 09:00", "last_given": "09:00", "next_due": "09:00", "status": "given"},
+        {"drug": "Cefazolin 2 g IV", "schedule": "completed", "last_given": "POD1", "next_due": null, "status": "completed"}
+      ],
+      "notes": [
+        {"time": "14:00", "author": "RN Day", "text": "Ambulated 40 ft with PT and walker. Pain 4/10 after PRN. Dressing clean, dry, intact."},
+        {"time": "18:00", "author": "RN Day", "text": "Alert and oriented x4. Tolerating diet. Wants to try stairs with PT tomorrow."}
+      ]
+    },
+    {
+      "id": "B",
+      "bed": "402",
+      "name": "Margaret Liu",
+      "age": 74,
+      "sex": "F",
+      "diagnosis": "Urinary tract infection, admitted for IV antibiotics",
+      "code_status": "Full code",
+      "allergies": ["Sulfa"],
+      "vitals": [
+        {"time": "07:00", "temp_c": 37.4, "hr": 82, "rr": 18, "sbp": 128, "dbp": 74, "spo2": 96},
+        {"time": "11:00", "temp_c": 37.7, "hr": 89, "rr": 19, "sbp": 121, "dbp": 70, "spo2": 96},
+        {"time": "15:00", "temp_c": 37.9, "hr": 96, "rr": 21, "sbp": 112, "dbp": 66, "spo2": 95},
+        {"time": "18:00", "temp_c": 38.1, "hr": 104, "rr": 22, "sbp": 104, "dbp": 62, "spo2": 94}
+      ],
+      "labs": [
+        {"time": "06:00", "name": "WBC", "value": 11.8, "unit": "K/uL", "ref_low": 4.0, "ref_high": 11.0},
+        {"time": "06:00", "name": "Lactate", "value": 2.1, "unit": "mmol/L", "ref_low": 0.5, "ref_high": 2.0},
+        {"time": "06:00", "name": "Creatinine", "value": 1.3, "unit": "mg/dL", "ref_low": 0.6, "ref_high": 1.1},
+        {"time": "06:00", "name": "Potassium", "value": 3.9, "unit": "mmol/L", "ref_low": 3.5, "ref_high": 5.0}
+      ],
+      "intake_output": [
+        {"time": "07:00-11:00", "urine_ml": 180},
+        {"time": "11:00-15:00", "urine_ml": 120},
+        {"time": "15:00-18:00", "urine_ml": 70}
+      ],
+      "meds": [
+        {"drug": "Ceftriaxone 1 g IV", "schedule": "q24h 10:00", "last_given": "10:00", "next_due": "10:00", "status": "given"},
+        {"drug": "Acetaminophen 650 mg PO", "schedule": "q6h PRN fever", "last_given": "15:30", "next_due": null, "status": "given"}
+      ],
+      "notes": [
+        {"time": "12:00", "author": "RN Day", "text": "Pleasant, ate 50% of lunch. Voiding without difficulty."},
+        {"time": "17:30", "author": "RN Day", "text": "Seemed slightly confused this afternoon, asked twice where she was. Daughter says she is 'not herself'. Reoriented easily."}
+      ],
+      "label_scans": [
+        {"time": "18:40", "image": "assets/labels/402_ceftriaxone_match.png", "drug": "Ceftriaxone", "label_dose": "1 g", "label_route": "IV piggyback", "label_patient": "Margaret Liu", "label_bed": "402", "mar_drug": "Ceftriaxone 1 g IV", "expected_result": "match", "_note": "Bag for tomorrow 10:00, checked early. Control case for Lens."}
+      ]
+    },
+    {
+      "id": "C",
+      "bed": "403",
+      "name": "James Okafor",
+      "age": 55,
+      "sex": "M",
+      "diagnosis": "Acute on chronic heart failure exacerbation",
+      "code_status": "Full code",
+      "allergies": ["Penicillin"],
+      "vitals": [
+        {"time": "07:00", "temp_c": 36.7, "hr": 88, "rr": 20, "sbp": 142, "dbp": 86, "spo2": 93},
+        {"time": "11:00", "temp_c": 36.8, "hr": 84, "rr": 19, "sbp": 136, "dbp": 82, "spo2": 94},
+        {"time": "15:00", "temp_c": 36.7, "hr": 80, "rr": 18, "sbp": 130, "dbp": 80, "spo2": 95},
+        {"time": "18:00", "temp_c": 36.8, "hr": 79, "rr": 18, "sbp": 128, "dbp": 78, "spo2": 95}
+      ],
+      "labs": [
+        {"time": "06:00", "name": "Potassium", "value": 3.3, "unit": "mmol/L", "ref_low": 3.5, "ref_high": 5.0},
+        {"time": "06:00", "name": "BNP", "value": 890, "unit": "pg/mL", "ref_low": 0, "ref_high": 100},
+        {"time": "06:00", "name": "Creatinine", "value": 1.1, "unit": "mg/dL", "ref_low": 0.6, "ref_high": 1.3}
+      ],
+      "intake_output": [
+        {"time": "07:00-11:00", "urine_ml": 900},
+        {"time": "11:00-15:00", "urine_ml": 750},
+        {"time": "15:00-18:00", "urine_ml": 520}
+      ],
+      "meds": [
+        {"drug": "Furosemide 40 mg IV", "schedule": "q12h 09:00/21:00", "last_given": "09:00", "next_due": "21:00", "status": "given"},
+        {"drug": "Digoxin 0.125 mg PO", "schedule": "daily 21:00", "last_given": "yesterday 21:00", "next_due": "21:00", "status": "due"},
+        {"drug": "Metoprolol succinate 25 mg PO", "schedule": "daily 09:00", "last_given": "09:00", "next_due": "09:00", "status": "given"}
+      ],
+      "notes": [
+        {"time": "13:00", "author": "RN Day", "text": "Down 1.4 kg from admission. Crackles at bases improved. On 2L NC."},
+        {"time": "18:00", "author": "RN Day", "text": "Mentioned leg cramps this afternoon. Potassium replacement not yet ordered."}
+      ],
+      "label_scans": [
+        {"time": "18:45", "image": "assets/labels/403_furosemide_mismatch.png", "drug": "Furosemide", "label_dose": "80 mg", "label_route": "IV push", "label_patient": "James Okafor", "label_bed": "403", "mar_drug": "Furosemide 40 mg IV", "expected_result": "mismatch", "_note": "Pharmacy sent 80 mg for the 21:00 dose; MAR says 40 mg. Lens reports the mismatch as a fact; Iris must still block any dose recommendation."}
+      ]
+    },
+    {
+      "id": "D",
+      "bed": "404",
+      "name": "Dorothy Evans",
+      "age": 81,
+      "sex": "F",
+      "diagnosis": "Left hip fracture, awaiting ORIF tomorrow 08:00",
+      "code_status": "DNR",
+      "allergies": ["Codeine"],
+      "vitals": [
+        {"time": "07:00", "temp_c": 36.6, "hr": 84, "rr": 17, "sbp": 138, "dbp": 72, "spo2": 96},
+        {"time": "11:00", "temp_c": 36.7, "hr": 86, "rr": 17, "sbp": 140, "dbp": 74, "spo2": 96},
+        {"time": "15:00", "temp_c": 36.6, "hr": 88, "rr": 18, "sbp": 142, "dbp": 76, "spo2": 96},
+        {"time": "18:00", "temp_c": 36.7, "hr": 87, "rr": 17, "sbp": 139, "dbp": 73, "spo2": 96}
+      ],
+      "labs": [
+        {"time": "06:00", "name": "Hemoglobin", "value": 10.9, "unit": "g/dL", "ref_low": 12.0, "ref_high": 15.5},
+        {"time": "06:00", "name": "INR", "value": 1.1, "unit": "", "ref_low": 0.8, "ref_high": 1.2}
+      ],
+      "intake_output": [
+        {"time": "07:00-11:00", "urine_ml": 220},
+        {"time": "11:00-15:00", "urine_ml": 200},
+        {"time": "15:00-18:00", "urine_ml": 160}
+      ],
+      "meds": [
+        {"drug": "Hydromorphone 0.5 mg IV", "schedule": "q3h PRN severe pain", "last_given": "17:00", "next_due": null, "status": "given"},
+        {"drug": "Enoxaparin 30 mg SC", "schedule": "daily 18:00", "last_given": "yesterday 18:00", "next_due": "18:00", "status": "not_documented"},
+        {"drug": "NPO after midnight", "schedule": "pre-op", "last_given": null, "next_due": "00:00", "status": "order"}
+      ],
+      "notes": [
+        {"time": "15:00", "author": "RN Day", "text": "High fall risk. Bed alarm on. Tried to get up alone once at 14:30."},
+        {"time": "18:30", "author": "RN Day", "text": "Pain 7/10 with repositioning. Surgery consent signed. Pre-op checklist partially complete."}
+      ]
+    }
+  ]
+}

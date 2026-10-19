@@ -1,0 +1,7 @@
+{
+  "_notice": "SYNTHETIC DEMO FIXTURE. Cached paraphrase of the digoxin label's electrolyte warning, used when DailyMed is unreachable. Replace with the fetched label text in live mode.",
+  "source": "DailyMed digoxin label",
+  "citation": "[DailyMed digoxin label]",
+  "url": "https://dailymed.nlm.nih.gov/dailymed/search.cfm?labeltype=all&query=digoxin",
+  "warning": "Low potassium (hypokalemia) can sensitize the heart to digoxin toxicity; monitor serum potassium when digoxin is given with diuretics."
+}

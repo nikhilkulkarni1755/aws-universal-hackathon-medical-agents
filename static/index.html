@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SBAR Handoff Team</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --text:#e8eaf0; --mute:#8b93a7; --red:#e03131; --amber:#f59f00; --green:#40c057; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, sans-serif; }
+  header { display:flex; gap:12px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0 auto 0 0; }
+  .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--line); }
+  .syn { background:#5c1a1a; color:#ffc9c9; border-color:var(--red); }
+  button { background:#4c6ef5; color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  button:disabled { background:#3a3f4c; color:var(--mute); cursor:not-allowed; }
+  main { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:14px; padding:14px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  #stage { display:flex; gap:14px; align-items:center; min-height:230px; }
+  #big { width:170px; height:170px; border-radius:50%; display:grid; place-items:center; font-size:64px; font-weight:700; color:#fff; flex:none; border:4px solid transparent; }
+  #who { font-size:20px; font-weight:700; } #role { color:var(--mute); }
+  #caption { font-size:18px; margin-top:8px; min-height:3.2em; }
+  #share { margin-top:8px; } #share img { max-width:260px; border-radius:8px; } #share pre { white-space:pre-wrap; background:#0f1115; padding:8px; border-radius:8px; }
+  #strip { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; margin-top:12px; }
+  .tile { background:#0f1115; border:2px solid var(--line); border-radius:10px; padding:8px 4px; text-align:center; font-size:12px; }
+  .tile .av { width:44px; height:44px; border-radius:50%; margin:0 auto 4px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:20px; }
+  .tile.on { border-color:#fff; box-shadow:0 0 0 2px var(--text); }
+  .chip { display:inline-block; background:#232a3b; color:#9db4ff; border-radius:6px; padding:0 6px; margin:0 2px; font-size:12px; white-space:nowrap; }
+  #board { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .col h3 { margin:0 0 6px; font-size:13px; color:var(--mute); } .bed { border-radius:8px; padding:8px; margin-bottom:6px; font-weight:700; }
+  .Escalate { background:#5c1a1a; border:1px solid var(--red); } .Act { background:#4d3a0a; border:1px solid var(--amber); } .Routine { background:#173a22; border:1px solid var(--green); }
+  #log { max-height:260px; overflow:auto; font-size:13px; } #log div { padding:3px 0; border-bottom:1px solid var(--line); } #log b { color:#fff; }
+  .card { border:1px solid var(--line); border-radius:10px; padding:10px; margin-top:10px; background:#0f1115; }
+  .card h4 { margin:0 0 6px; } .iris-ok { color:var(--green); font-weight:700; } .iris-bad { color:var(--red); font-weight:700; }
+  .card p { margin:4px 0; } .card .k { color:var(--mute); font-weight:700; margin-right:4px; }
+  input[type=text] { flex:1; background:#0f1115; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SBAR Handoff Team · 4 West</h1>
+  <span class="badge syn">SYNTHETIC DATA</span>
+  <span class="badge" id="mode">…</span>
+  <select id="agent" title="Demo one agent on its own"><option value="">Full handoff</option></select>
+  <button id="start">Start</button>
+</header>
+<main>
+  <section>
+    <div class="panel">
+      <div id="stage">
+        <div id="big">?</div>
+        <div><div id="who">Huddle ready</div><div id="role">Press Start handoff</div><div id="caption"></div><div id="share"></div></div>
+      </div>
+      <div id="strip"></div>
+    </div>
+  </section>
+  <section>
+    <div class="panel">
+      <div id="board"></div>
+      <div id="log"></div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <input type="text" id="q" placeholder="Ask by voice or text: Why is 402 above 403?">
+        <button id="mic" title="Push to talk">🎤</button><button id="ask">Ask</button>
+      </div>
+    </div>
+    <div id="cards"></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const CHIP = /(\[[^\]]+\])/g;
+let personas = {}, queue = [], busy = false, result = null;
+
+function fill(el, text) {              // text with citation chips, built with DOM nodes (no HTML injection)
+  el.textContent = '';
+  text.split(CHIP).forEach((part) => {
+    if (!part) return;
+    if (CHIP.test(part)) { const c = document.createElement('span'); c.className = 'chip'; c.textContent = part; el.append(c); }
+    else el.append(part);
+    CHIP.lastIndex = 0;
+  });
+}
+function avatar(el, name) { el.textContent = name[0]; el.style.background = personas[name]?.color || '#555'; }
+
+async function init() {
+  const a = await (await fetch('/api/agents')).json();
+  $('mode').textContent = a.mode;
+  a.demo.forEach((n) => $('agent').append(new Option('Demo: ' + n, n)));
+  a.agents.forEach((p) => {
+    personas[p.name] = p;
+    const t = document.createElement('div'); t.className = 'tile'; t.id = 'tile-' + p.name;
+    t.innerHTML = '<div class="av"></div><b></b><div style="color:var(--mute)"></div>';
+    avatar(t.querySelector('.av'), p.name); t.querySelector('b').textContent = p.name; t.querySelector('div:last-child').textContent = p.role;
+    $('strip').append(t);
+  });
+  const es = new EventSource('/api/stream');
+  es.onmessage = (m) => { const e = JSON.parse(m.data); if (!e.done) { queue.push(e); pump(); } };
+}
+
+function speakText(ev) {               // Masky audio when the event carries one, else browser TTS with a per-agent voice
+  return new Promise((done) => {
+    const p = personas[ev.from], text = ev.text.replace(CHIP, '');
+    const fallback = setTimeout(done, 1500 + text.length * 70);
+    const end = () => { clearTimeout(fallback); done(); };
+    if (ev.audio_url) { const au = new Audio(ev.audio_url); au.onended = end; au.onerror = end; au.play().catch(end); return; }
+    if (!window.speechSynthesis || !p) return end();
+    const u = new SpeechSynthesisUtterance(text); u.pitch = p.pitch; u.rate = p.rate; u.onend = end; u.onerror = end;
+    speechSynthesis.speak(u);
+  });
+}
+
+function show(ev) {
+  const p = personas[ev.from] || { color: '#555', role: 'Incoming RN' };
+  document.querySelectorAll('.tile').forEach((t) => t.classList.toggle('on', t.id === 'tile-' + ev.from));
+  avatar($('big'), ev.from); $('big').style.background = p.color; $('big').style.borderColor = '#fff';
+  $('who').textContent = `${ev.from} → ${ev.to}`; $('role').textContent = p.role;
+  const cap = $('caption'); fill(cap, ev.text + ' ' + ev.citations.join(' '));
+  const d = document.createElement('div'); fill(d, `${ev.from} → ${ev.to}: ${ev.text} ${ev.citations.join(' ')}`);
+  $('log').append(d); $('log').scrollTop = 1e9;
+  const sh = $('share'); sh.textContent = '';
+  const a = ev.attachment;
+  if (a?.type === 'svg') { sh.innerHTML = a.svg; sh.append(` ${a.title} · ${a.badge}`); }
+  if (a?.type === 'image') { const i = document.createElement('img'); i.src = a.src; sh.append(i); }
+  if (a?.type === 'text') { const pre = document.createElement('pre'); pre.textContent = a.title + ': ' + a.text; sh.append(pre); }
+}
+
+async function pump() {
+  if (busy) return; busy = true;
+  while (queue.length) {
+    const ev = queue.shift();
+    show(ev);
+    if (ev.from === 'Vera' && ev.to === 'Quinn') await refresh();
+    await speakText(ev);
+    if (ev.to === 'RN' && ev.from === 'Quinn' && ev.text.startsWith('Ready')) await refresh();
+  }
+  busy = false;
+}
+
+async function refresh() {
+  for (let i = 0; i < 40 && !result; i++) {
+    const s = await (await fetch('/api/state')).json();
+    if (s.result) result = s.result; else await new Promise((r) => setTimeout(r, 500));
+  }
+  if (!result) return;
+  const cols = { Escalate: [], 'Act this shift': [], Routine: [] };
+  result.ranking.forEach((r) => cols[r.tier].push(r));
+  $('board').textContent = '';
+  Object.entries(cols).forEach(([tier, rows]) => {
+    const c = document.createElement('div'); c.className = 'col'; c.innerHTML = '<h3></h3>'; c.firstChild.textContent = tier;
+    rows.forEach((r) => { const b = document.createElement('div'); b.className = 'bed ' + tier.split(' ')[0]; b.textContent = `Bed ${r.bed}`; c.append(b); });
+    $('board').append(c);
+  });
+  renderCards();
+}
+
+function renderCards() {
+  $('cards').textContent = '';
+  result.ranking.forEach((r) => {
+    const s = result.sbars[r.bed], f = result.forms[r.bed], card = document.createElement('div'); card.className = 'card';
+    const h = document.createElement('h4'); h.textContent = `Bed ${r.bed} · ${r.tier} · `;
+    const v = document.createElement('span'); v.className = s.iris.ok ? 'iris-ok' : 'iris-bad'; v.textContent = 'Iris: ' + s.iris.text; h.append(v);
+    card.append(h);
+    'SBAR'.split('').forEach((k) => { const p = document.createElement('p'); const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k + ':'; p.append(kk); const t = document.createElement('span'); fill(t, s.sections[k]); p.append(t); card.append(p); });
+    const ask = document.createElement('p'); fill(ask, 'Provider form (Felix) — ask: ' + f.ask); card.append(ask);
+    const btn = document.createElement('button'); btn.textContent = 'Approve & send page'; btn.disabled = !s.iris.ok;
+    const out = document.createElement('span'); out.style.marginLeft = '8px';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      const res = await fetch('/api/approve/' + r.bed, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approver: 'Incoming RN', hash: result.hashes[r.bed] }) });
+      out.textContent = res.ok ? (await res.json()).status : 'Blocked: ' + (await res.json()).detail;
+    };
+    card.append(btn, out); $('cards').append(card);
+  });
+}
+
+$('start').onclick = async () => {
+  result = null; queue = []; $('log').textContent = ''; $('cards').textContent = ''; $('board').textContent = '';
+  const r = await fetch('/api/run' + ($('agent').value ? '?agent=' + $('agent').value : ''), { method: 'POST' });
+  if (!r.ok) alert('A run is already in progress.');
+};
+async function ask() { const q = $('q').value.trim(); if (q) { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); $('q').value = ''; } }
+$('ask').onclick = ask; $('q').onkeydown = (e) => e.key === 'Enter' && ask();
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SR) { $('mic').onclick = () => { const r = new SR(); r.onresult = (e) => { $('q').value = e.results[0][0].transcript; ask(); }; r.start(); }; } else $('mic').disabled = true;
+init();
+</script>
+</body>
+</html>

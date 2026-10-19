@@ -1,0 +1,41 @@
+{
+  "_notice": "SYNTHETIC. Cached Lens (label check) results for offline demo mode. Live mode sends the PNG to Claude vision and must return this same shape.",
+  "results": [
+    {
+      "image": "403_furosemide_mismatch.png",
+      "patient": "C",
+      "bed": "403",
+      "classification": "mismatch",
+      "fields": {
+        "patient_name": {"label": "OKAFOR, JAMES", "mar": "James Okafor", "match": true},
+        "bed": {"label": "403", "mar": "403", "match": true},
+        "drug": {"label": "Furosemide", "mar": "Furosemide", "match": true},
+        "dose": {"label": "80 mg", "mar": "40 mg", "match": false},
+        "route": {"label": "IV push", "mar": "IV", "match": true},
+        "due": {"label": "10/19 21:00", "mar": "21:00", "match": true}
+      },
+      "finding": "Label dose 80 mg does not match MAR order 40 mg for the 21:00 dose.",
+      "citation": "[Label photo 18:45] [MAR Furosemide]",
+      "severity": "high",
+      "handoff_to": "Mina"
+    },
+    {
+      "image": "402_ceftriaxone_match.png",
+      "patient": "B",
+      "bed": "402",
+      "classification": "match",
+      "fields": {
+        "patient_name": {"label": "LIU, MARGARET", "mar": "Margaret Liu", "match": true},
+        "bed": {"label": "402", "mar": "402", "match": true},
+        "drug": {"label": "Ceftriaxone", "mar": "Ceftriaxone", "match": true},
+        "dose": {"label": "1 g", "mar": "1 g", "match": true},
+        "route": {"label": "IV piggyback", "mar": "IV", "match": true},
+        "due": {"label": "10/20 10:00", "mar": "10:00", "match": true}
+      },
+      "finding": "All fields match the MAR.",
+      "citation": "[Label photo 18:40] [MAR Ceftriaxone]",
+      "severity": "none",
+      "handoff_to": "Mina"
+    }
+  ]
+}
