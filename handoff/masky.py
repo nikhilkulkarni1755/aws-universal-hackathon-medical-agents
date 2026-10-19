@@ -31,11 +31,6 @@ def has_voice(agent):
     return bool(os.environ.get("MASKY_API_KEY")) and FILE.exists() and agent in json.loads(FILE.read_text())
 
 
-def image(agent):
-    """Portrait URL of the agent's Masky avatar, or None."""
-    return json.loads(FILE.read_text()).get(agent, {}).get("image") if FILE.exists() else None
-
-
 def spoken(text):
     """Citations are for the eye, not the ear; Masky splits replies at 3 sentences, so send at most 3."""
     sentences = re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]+\]", "", text).strip())

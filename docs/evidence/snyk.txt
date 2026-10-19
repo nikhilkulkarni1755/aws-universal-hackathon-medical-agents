@@ -1,0 +1,14 @@
+Snyk results for aws-universal-hackathon-medical-agents (2026-10-19 16:30 PDT)
+
+$ snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python
+Organization:      nikhilkulkarni1755
+Package manager:   pip
+Target file:       requirements.txt
+✔ Tested 33 dependencies for known issues, no vulnerable paths found.
+
+$ snyk code test
+│   Organization:      nikhilkulkarni1755                                               │
+│   Test type:         Static code analysis                                             │
+│   Total issues:   0                                                                   │
+
+Findings fixed along the way (Snyk Code): path traversal (temp file), DOM XSS (portraits, ids), hardcoded-password false positive (renamed a key), SSRF (removed a throwaway script and a proxy route).

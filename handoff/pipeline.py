@@ -126,7 +126,7 @@ def sam_step(ctx, emit):
             emit("Iris", "Vera", f"{verdict(check_text(draft, *args))['text']}. {quip('Iris', 'reject')}")
             draft = sam_draft(bed)
             emit("Vera", "Iris", f"Rewritten {bed} as an escalation.", [], {"type": "sbar", "bed": bed, "sbar": draft})
-            emit("Iris", "Vera", f"{verdict(check_text(draft, *args))['text']} {quip('Iris', 'pass')}")
+            emit("Iris", "Vera", f"{verdict(check_text(draft, *args))['text']} {quip('Iris', 'cleared')}")
         ctx["drafts"][bed] = draft
     emit("Vera", "Iris", f"Drafts for the other beds are ready. {quip('Vera', 'ready')}")
 

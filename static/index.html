@@ -25,6 +25,7 @@
   #strip { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px; margin-top:12px; }
   .tile { background:#0f1115; border:2px solid var(--line); border-radius:10px; padding:8px 4px; text-align:center; font-size:12px; }
   .tile .av { width:44px; height:44px; border-radius:50%; margin:0 auto 4px; display:grid; place-items:center; font-weight:700; color:#fff; font-size:20px; }
+  .portrait { width:100%; height:100%; border-radius:50%; object-fit:cover; }
   .tile.on { border-color:#fff; box-shadow:0 0 0 2px var(--text); }
   .chip { display:inline-block; background:#232a3b; color:#9db4ff; border-radius:6px; padding:0 6px; margin:0 2px; font-size:12px; white-space:nowrap; }
   #board { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
@@ -70,7 +71,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const CHIP = /(\[[^\]]+\])/g;
-let personas = {}, queue = [], busy = false, result = null;
+let personas = {}, tiles = {}, queue = [], busy = false, result = null;
 const audioFor = {};   // event id -> Masky audio URL, filled by SSE audio events
 
 function fill(el, text) {              // text with citation chips, built with DOM nodes (no HTML injection)
@@ -83,20 +84,23 @@ function fill(el, text) {              // text with citation chips, built with D
   });
 }
 function avatar(el, name) {            // Masky portrait when the agent has one, else a coloured initial
-  const p = personas[name], img = p?.image;
-  el.textContent = img ? '' : name[0];
-  el.style.background = img ? `center / cover url("${img}")` : (p?.color || '#555');
+  const p = personas[name];
+  el.textContent = p?.image ? '' : name[0];
+  el.style.background = p?.color || '#555';
+  const known = ['Quinn', 'Wren', 'Mina', 'Vera', 'Iris'].find((n) => n === name);   // portraits exist for these five only
+  if (p?.image && known) { const i = new Image(); i.src = `/assets/portraits/${known}.jpg`; i.alt = known; i.className = 'portrait'; el.append(i); }
 }
 
 async function init() {
   const a = await (await fetch('/api/agents')).json();
   $('mode').textContent = a.mode;
   a.demo.forEach((n) => $('agent').append(new Option('Demo: ' + n, n)));
-  a.agents.forEach((p) => {
+  a.agents.filter((p) => /^[A-Za-z]+$/.test(p.name)).forEach((p) => {   // agent names are plain words
     personas[p.name] = p;
-    const t = document.createElement('div'); t.className = 'tile'; t.id = 'tile-' + p.name;
-    t.innerHTML = '<div class="av"></div><b></b><div style="color:var(--mute)"></div>';
-    avatar(t.querySelector('.av'), p.name); t.querySelector('b').textContent = p.name; t.querySelector('div:last-child').textContent = p.role;
+    const t = document.createElement('div'); t.className = 'tile'; tiles[p.name] = t;
+    const av = document.createElement('div'), nm = document.createElement('b'), role = document.createElement('div');
+    av.className = 'av'; nm.textContent = p.name; role.textContent = p.role; role.style.color = 'var(--mute)';
+    t.append(av, nm, role); avatar(av, p.name);
     $('strip').append(t);
   });
   const es = new EventSource('/api/stream');
@@ -130,7 +134,7 @@ async function speakText(ev) {         // resolves only when this line has reall
 
 function show(ev) {
   const p = personas[ev.from] || { color: '#555', role: 'Incoming RN' };
-  document.querySelectorAll('.tile').forEach((t) => t.classList.toggle('on', t.id === 'tile-' + ev.from));
+  Object.entries(tiles).forEach(([n, t]) => t.classList.toggle('on', n === ev.from));
   avatar($('big'), ev.from); $('big').style.borderColor = '#fff';
   $('who').textContent = `${ev.from} → ${ev.to}`; $('role').textContent = p.role;
   const cap = $('caption'); fill(cap, ev.text + ' ' + ev.citations.join(' '));
@@ -169,7 +173,7 @@ async function refresh() {
   result.ranking.forEach((r) => cols[r.tier].push(r));
   $('board').textContent = '';
   Object.entries(cols).forEach(([tier, rows]) => {
-    const c = document.createElement('div'); c.className = 'col'; c.innerHTML = '<h3></h3>'; c.firstChild.textContent = tier;
+    const c = document.createElement('div'); c.className = 'col'; const h3 = document.createElement('h3'); h3.textContent = tier; c.append(h3);
     rows.forEach((r) => { const b = document.createElement('div'); b.className = 'bed ' + tier.split(' ')[0]; b.textContent = `Bed ${r.bed}`; c.append(b); });
     $('board').append(c);
   });

@@ -57,7 +57,7 @@ def _worker(agent):
 
 @app.get("/api/agents")
 def agents():
-    return {"agents": [{**p, "masky": masky.has_voice(p["name"]), "image": masky.image(p["name"])} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
+    return {"agents": [{**p, "masky": masky.has_voice(p["name"]), "image": (ROOT / "assets" / "portraits" / f"{p['name']}.jpg").exists()} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
 
 
 @app.post("/api/run")

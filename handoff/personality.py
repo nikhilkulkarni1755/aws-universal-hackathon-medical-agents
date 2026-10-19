@@ -25,7 +25,7 @@ QUIPS = {
     "Vera": {"rank": "No offense to the other beds, but it is not close.", "ready": "Short, cited, done. Iris, they are yours."},
     "Iris": {  # deadpan auditor
         "reject": "Nice try. I would say that nicely, but it was not.",
-        "pass": "Try not to let it go to your head.",
+        "cleared": "Try not to let it go to your head.",
         "all": "Everyone behaved. I am as surprised as you.",
     },
 }
