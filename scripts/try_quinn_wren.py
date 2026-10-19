@@ -1,5 +1,6 @@
 """Hear Quinn route questions to Wren in their Masky voices.
 Run from repo/:  set -a; . ./.env; set +a; .venv/bin/python scripts/try_quinn_wren.py   (add --silent to skip playback)"""
+import os
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,8 @@ def say(agent, text, play=True):
     url = masky.speak(agent, text)
     print(f"{agent:>6}: {text}\n        ({'Masky voice' if url else 'NO AUDIO, check MASKY_API_KEY'}, {time.time() - start:.1f}s)")
     if url and play:
-        path = tempfile.mktemp(suffix=Path(url.split("?")[0]).suffix or ".mp3")
+        handle, path = tempfile.mkstemp(suffix=Path(url.split("?")[0]).suffix or ".mp3")
+        os.close(handle)
         urlretrieve(url, path)
         subprocess.run(["afplay", path])
 

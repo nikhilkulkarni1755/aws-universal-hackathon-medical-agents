@@ -113,7 +113,7 @@ def _page(bed, tier, approver, citations):
     body = {"bed": bed, "tier": tier, "approver": approver, "time": time.strftime("%H:%M:%S"),
             "citations": citations}
     url = os.environ.get("N8N_WEBHOOK_URL")
-    if not url:
+    if not url or not url.startswith(("https://", "http://")):  # urlopen would also accept file:// and other schemes
         return body, "page queued (demo)"
     try:
         req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})

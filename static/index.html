@@ -138,7 +138,11 @@ function show(ev) {
   $('log').append(d); $('log').scrollTop = 1e9;
   const sh = $('share'); sh.textContent = '';
   const a = ev.attachment;
-  if (a?.type === 'svg') { sh.innerHTML = a.svg; sh.append(` ${a.title} · ${a.badge}`); }
+  if (a?.type === 'svg') {   // sandbox output may be model-written: show it as an image, where scripts cannot run
+    const i = new Image(); i.alt = a.title;
+    i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(a.svg.replace(/currentColor/g, '#9db4ff'));
+    sh.append(i, ` ${a.title} · ${a.badge}`);
+  }
   if (a?.type === 'image') { const i = document.createElement('img'); i.src = a.src; sh.append(i); }
   if (a?.type === 'text') { const pre = document.createElement('pre'); pre.textContent = a.title + ': ' + a.text; sh.append(pre); }
 }
