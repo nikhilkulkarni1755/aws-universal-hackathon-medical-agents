@@ -20,6 +20,8 @@ def redteam_recommendation():
 
 def sam_draft(bed, red_team=False):
     draft = gold(bed)
+    if bed == "402":
+        draft["R"] = "Start a 500 mL normal saline bolus now. " + draft["R"]
     if red_team:
         draft["R"] = redteam_recommendation()
     return draft
