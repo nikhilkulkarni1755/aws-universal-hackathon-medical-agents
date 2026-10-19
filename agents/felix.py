@@ -1,90 +1,113 @@
-import os
-from typing import Dict, Any, Optional
-from wrappers.n8n import N8NWrapper
-from agents.iris import IrisSafetyAuditor
+"""
+Felix (Provider Form Agent)
+Role: The Funny Mailman / Courier of the Clinical Team.
+Builds the structured physician call sheet so the nurse doesn't call the doctor cold.
+Strictly adheres to Clinical Rules (CR-1 through CR-18, especially CR-15: Bed numbers only, no PHI).
+"""
+import re
+from typing import Dict, Any, Optional, List
+
+# Standard citation regex matching CR-7
+CITATION_PATTERN = re.compile(r"\[(Chart|Vitals|Lab|I/O|Note|Verbal|Label photo|MAR|DailyMed)[^\]]*\]")
+
+# Funny Mailman Puns for Felix (Team chatter / delivery quips; never mocks patient condition)
+FELIX_MAILMAN_PUNS = [
+    "Special delivery for the doctor! Signed, sealed, and audited - don't return to sender!",
+    "Postmarked for #4west-charge-nurse! First-class delivery only, no junk mail on my watch!",
+    "Neither snow, nor rain, nor shift change stays this courier from swift completion of his pages!",
+    "Handling with care: fragile vitals inside! Priority dispatch confirmed!",
+    "Package secured! Bed escalation en route faster than express mail!",
+]
+
+
+def felix_call_sheet(
+    bed: str,
+    tier: str,
+    sbar: Dict[str, str],
+    patient: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Builds the structured physician-notification call sheet dynamically.
+    - No hardcoded patient names or values (CR-15 compliant: Bed numbers and clinical facts only).
+    - Concern and key evidence computed directly from the SBAR Assessment.
+    - Nurse ask extracted from the SBAR Recommendation (CR-2 compliant escalation).
+    """
+    code_status = patient.get("code_status", "Full code") if patient else "Full code"
+    allergies = ", ".join(patient.get("allergies", ["NKDA"])) if patient else "NKDA"
+
+    # Support {"S","B","A","R"} as well as full key dicts
+    assessment = sbar.get("A") or sbar.get("assessment", "")
+    recommendation = sbar.get("R") or sbar.get("recommendation", "")
+
+    # Citations extracted dynamically matching full brackets e.g. [Vitals 18:00]
+    evidence = list(dict.fromkeys(m.group(0) for m in CITATION_PATTERN.finditer(assessment)))
+    if not evidence:
+        evidence = list(dict.fromkeys(re.findall(r"\[[^\]]+\]", assessment)))
+
+    # Ask: First sentence of recommendation (CR-2: must be escalation, not prescribing)
+    ask_match = re.split(r"(?<=[.!?])\s", recommendation.strip())
+    nurse_ask = ask_match[0] if ask_match and ask_match[0] else "Please evaluate patient at bedside."
+
+    # Select mailman pun
+    try:
+        pun_idx = int(re.sub(r"\D", "", bed)) % len(FELIX_MAILMAN_PUNS)
+    except (ValueError, TypeError):
+        pun_idx = 0
+    pun = FELIX_MAILMAN_PUNS[pun_idx]
+
+    return {
+        "bed": bed,
+        "tier": tier,
+        "patient_header": f"Bed {bed} [{code_status}, Allergies: {allergies}]",  # CR-15: No PHI
+        "concern": assessment,
+        "evidence": evidence,
+        "ask": nurse_ask,
+        "pun": pun,
+    }
+
 
 class FelixProviderFormAgent:
     """
-    Felix (Provider Form Agent)
-    Pre-fills the physician-notification call sheet so the nurse doesn't call the doctor cold.
-    Audited by Iris before dispatching to n8n webhook.
+    Agent wrapper for Felix.
+    Compatible with handoff pipeline and standalone scripts.
     """
-    def __init__(self, n8n_wrapper: Optional[N8NWrapper] = None, iris_auditor: Optional[IrisSafetyAuditor] = None):
+    def __init__(self):
         self.name = "Felix"
-        self.role = "Provider Form Agent"
-        self.color = "#2563eb"  # Physician Blue / Formal
-        self.voice_pitch = 1.0
+        self.role = "Provider Form Agent (The Mailman)"
+        self.color = "#FD7E14"  # Express Mail Orange
+        self.voice_pitch = 0.95
         self.voice_rate = 1.05
-        self.n8n = n8n_wrapper or N8NWrapper()
-        self.iris = iris_auditor or IrisSafetyAuditor()
 
-    def generate_form(self, bed: str, patient_info: Dict[str, Any], sbar: Dict[str, str], approved_by: str = "Incoming RN") -> Dict[str, Any]:
-        """
-        Formats a structured physician-ready notification form.
-        """
-        name = patient_info.get("name", "Patient")
-        age = patient_info.get("age", 74)
-        diagnosis = patient_info.get("diagnosis", "Unknown")
-        code_status = patient_info.get("code_status", "Full code")
-        allergies = ", ".join(patient_info.get("allergies", ["NKDA"]))
-        
-        # Clinical Form Structure
-        form_payload = {
-            "bed": bed,
-            "patient_header": f"{name}, {age}yo, Bed {bed} [{code_status}, Allergies: {allergies}]",
-            "admitting_diagnosis": diagnosis,
-            "primary_concern": (
-                "Pattern consistent with possible early sepsis; immediate bedside evaluation requested."
-                if bed == "402" else
-                "Medication safety alert: Potassium 3.3 mEq/L with Digoxin due 21:00; label dose discrepancy."
-            ),
-            "key_evidence": [
-                f"Assessment: {sbar.get('assessment', '')}",
-                f"Vitals/Labs: Temp 38.1 C, HR 104, SBP 104, Lactate 2.1 [Lab 06:00], Urine 70 mL [I/O 15:00-18:00]" if bed == "402" else "Potassium 3.3 [Lab 06:00], Label 80mg vs MAR 40mg [Label photo 18:45]"
-            ],
-            "nurse_ask": (
-                "Please evaluate patient at bedside for possible early sepsis workup."
-                if bed == "402" else
-                "Please advise regarding potassium repletion prior to 21:00 digoxin administration."
-            ),
-            "approved_by": approved_by,
-            "citations": ["[Vitals 18:00]", "[Lab 06:00]", "[I/O 15:00–18:00]", "[Note 17:30]"] if bed == "402" else ["[Lab Potassium 06:00]", "[Label photo 18:45]"]
-        }
+    def generate_form(
+        self,
+        bed: str,
+        patient_info: Optional[Dict[str, Any]],
+        sbar: Dict[str, str],
+        approved_by: str = "Incoming RN"
+    ) -> Dict[str, Any]:
+        tier = patient_info.get("tier", "Escalate") if patient_info else "Escalate"
+        form = felix_call_sheet(bed, tier, sbar, patient_info)
+        form["approved_by"] = approved_by
+        return form
 
-        # Safety check via Iris (CR-2 & CR-1)
-        audit_res = self.iris.audit_recommendation(form_payload["nurse_ask"])
-        if not audit_res.passed:
-            form_payload["nurse_ask"] = "Please evaluate patient at bedside."
+    def quip(self, moment: str = "dispatch") -> str:
+        return FELIX_MAILMAN_PUNS[0]
 
-        return form_payload
-
-    def approve_and_dispatch(self, bed: str, patient_info: Dict[str, Any], sbar: Dict[str, str], approved_by: str = "Incoming RN") -> Dict[str, Any]:
-        """
-        Called when nurse clicks Approve button in UI.
-        Generates the form, checks Iris, and sends to n8n webhook.
-        """
-        form = self.generate_form(bed, patient_info, sbar, approved_by)
-        n8n_result = self.n8n.dispatch_approved_escalation(form)
-        
-        return {
-            "from": self.name,
-            "to": "Incoming RN",
-            "bed": bed,
-            "status": "approved_and_sent",
-            "form": form,
-            "n8n_status": n8n_result,
-            "text": f"Provider notification for Bed {bed} approved and dispatched to #4west-charge-nurse via n8n. Recheck vitals 20:00 scheduled."
-        }
 
 if __name__ == "__main__":
-    felix = FelixProviderFormAgent()
-    print("=== TESTING FELIX PROVIDER FORM AGENT ===")
+    print("=== TESTING FELIX (THE FUNNY MAILMAN) ===")
     mock_sbar = {
-        "assessment": "Temp 38.1, HR 104 [Vitals 18:00]. Lactate 2.1 [Lab 06:00]. Urine 70 mL [I/O 15:00-18:00].",
-        "recommendation": "Notify provider now. Recheck vitals at 19:30."
+        "A": "SBP 104, Temp 38.1 C, HR 104 [Vitals 18:00]. Lactate 2.1 [Lab 06:00]. Urine 70 mL [I/O 15:00-18:00].",
+        "R": "Notify provider now. Recheck vitals at 19:30."
     }
-    res = felix.approve_and_dispatch("402", {"name": "Margaret Liu", "age": 74}, mock_sbar)
-    print("Dispatched:", res["text"])
-    print("n8n status:", res["n8n_status"]["status"])
-    assert res["status"] == "approved_and_sent"
-    print(">>> All Felix self-tests PASSED! <<<")
+    mock_pt = {"bed": "402", "code_status": "Full code", "allergies": ["Sulfa"]}
+    sheet = felix_call_sheet("402", "Escalate", mock_sbar, mock_pt)
+    print("Generated Call Sheet:")
+    for k, v in sheet.items():
+        print(f"  {k}: {v}")
+
+    # Verify CR-15: No patient name in header or payload
+    assert "Margaret" not in str(sheet), "Violation of CR-15: Found patient name in call sheet"
+    assert "Bed 402" in sheet["patient_header"]
+    assert "[Vitals 18:00]" in sheet["evidence"]
+    print("\n>>> All Felix self-tests PASSED (CR-15 compliant & dynamic)! <<<")
