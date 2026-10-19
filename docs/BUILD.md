@@ -24,19 +24,19 @@ One function per service: live is the default, with a cached copy as an automati
 | 3 | Sam / Felix templates | done | `handoff/writers.py` | gold SBAR + form per bed |
 | 4 | API: run, stream, state, ask, approve + audit | done, tested | `server.py` | `tests/test_server.py` green |
 | 5 | Huddle page (tiles, captions, board, cards, Ask, Approve) | built, **not yet browser-tested** | `static/index.html` | every "Demo:" option runs; no console errors |
-| 6 | Masky avatars + voices: 5 of 10 created (Iris, Vera, Theo, Mina, Sam) | **blocked on avatar limit (5); Quinn and Wren need slots** | `scripts/masky_setup.py` | 9 avatars; per-agent conversation; pre-rendered lines |
+| 6 | Masky avatars + voices: 5 of 10 created (Quinn, Wren, Iris, Vera, Mina) | **capped at 5 on Creator; Theo, Sam, Felix, Echo, Lens use browser voice** | `scripts/masky_setup.py` | second account or Pro for the rest |
 | 7 | Masky audio into the huddle | **done**: server renders each line in the agent's voice (6 s cold, 1.3 s repeat) and the page plays it; browser voice if none | `handoff/masky.py`, `server.py`, `static/index.html` | cache warm-up script still to do |
 | 7b | Quinn routes questions to the owning agent; Wren (chart clerk) added | **done, tested** | `handoff/pipeline.py` (`ROUTES`, `ANSWERERS`) | `pytest` green |
 | 8 | Avatar images in tiles (replace initials), idle loops | not started | `static/index.html` | tiles show Masky portraits |
 | 9 | Theo on Tenki sandbox (outbound off) + local fallback | **done, verified live** (template script; Claude-written script needs `FLATKEY_API_KEY`) | `handoff/sandbox.py`, `llm.py` | badge reads "tenki sandbox · <source> script · Ns" |
 | 10 | Claude-written SBAR (live) with template fallback | not started | `handoff/writers.py` | Iris still passes; refusal falls back |
-| 11 | DailyMed live fetch with cached fallback | not started | `handoff/agents.py` | Mina's attachment shows fetched text |
+| 11 | DailyMed live fetch with cached fallback | **done, verified live** | `handoff/agents.py` | attachment title says "live from DailyMed" |
 | 12 | n8n workflow (webhook to Slack/Discord + audit row) | not started | n8n cloud + `N8N_WEBHOOK_URL` | page appears in channel on Approve |
 | 13 | Echo live: record handoff audio + faster-whisper (P1) | not started | `assets/verbal/` | transcript matches cached claims |
 | 14 | Lens live vision (P1) + blurry-label fixture | not started | `handoff/agents.py` | 3 labels classified |
 | 15 | Browser smoke test of the huddle page | not started | `tests/` | headless page loads, Start runs, Approve works |
 | 16 | Snyk scan + fixes + screenshot | not started | repo | clean report |
-| 17 | Prelint GitHub App + one PR showing a flagged dose | not started | GitHub | screenshot |
+| 17 | Prelint GitHub App + one PR showing a flagged dose | **done**: finding on closed PR #1 (CR-2, CR-4) | GitHub | screenshot for the deck |
 | 18 | Deck (`/deck.html` or Canva), backup video, README polish | README done | | URL ready |
 | 19 | Submissions: crewbase, Masky form, Twitch chat deck URL | not started | | all three before 5:30 |
 
