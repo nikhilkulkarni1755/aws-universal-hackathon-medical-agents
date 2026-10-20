@@ -38,8 +38,14 @@
   .tile.on { border-color:#fff; box-shadow:0 0 0 2px var(--text); }
   .chip { display:inline-block; background:#232a3b; color:#9db4ff; border-radius:6px; padding:0 6px; margin:0 2px; font-size:12px; white-space:nowrap; }
   #board { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
-  .col h3 { margin:0 0 6px; font-size:13px; color:var(--mute); } .bed { border-radius:8px; padding:8px; margin-bottom:6px; font-weight:700; }
-  .Escalate { background:#5c1a1a; border:1px solid var(--red); } .Act { background:#4d3a0a; border:1px solid var(--amber); } .Routine { background:#173a22; border:1px solid var(--green); }
+  .col h3 { margin:0 0 6px; font-size:13px; color:var(--mute); }
+  button.bed { display:block; width:100%; text-align:left; border-radius:8px; padding:8px; margin-bottom:6px; font-weight:700; color:#fff; }
+  button.bed small { display:block; font-weight:400; opacity:.85; font-size:12px; }
+  button.bed:hover:not(:disabled) { filter:brightness(1.3); }
+  button.Escalate, button.Escalate:disabled, button.Escalate:hover:not(:disabled) { background:#5c1a1a; border:1px solid var(--red); }
+  button.Act, button.Act:disabled, button.Act:hover:not(:disabled) { background:#4d3a0a; border:1px solid var(--amber); }
+  button.Routine, button.Routine:disabled, button.Routine:hover:not(:disabled) { background:#173a22; border:1px solid var(--green); }
+  button.bed:disabled { color:#fff; opacity:.75; }
   #log { max-height:260px; overflow:auto; font-size:13px; } #log div { padding:3px 0; border-bottom:1px solid var(--line); } #log b { color:#fff; }
   .card { border:1px solid var(--line); border-radius:10px; padding:10px; margin-top:10px; background:#0f1115; }
   .card h4 { margin:0 0 6px; } .iris-ok { color:var(--green); font-weight:700; } .iris-bad { color:var(--red); font-weight:700; }
@@ -82,7 +88,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const CHIP = /(\[[^\]]+\])/g;
-let personas = {}, tiles = {}, queue = [], busy = false, result = null;
+let personas = {}, tiles = {}, queue = [], busy = false, result = null, paged = {};
 const audioFor = {};   // event id -> Masky audio URL, filled by SSE audio events
 
 function fill(el, text) {              // text with citation chips, built with DOM nodes (no HTML injection)
@@ -194,10 +200,36 @@ async function refresh() {
   $('board').textContent = '';
   Object.entries(cols).forEach(([tier, rows]) => {
     const c = document.createElement('div'); c.className = 'col'; const h3 = document.createElement('h3'); h3.textContent = tier; c.append(h3);
-    rows.forEach((r) => { const b = document.createElement('div'); b.className = 'bed ' + tier.split(' ')[0]; b.textContent = `Bed ${r.bed}`; c.append(b); });
+    rows.forEach((r) => {
+      const b = document.createElement('button'), small = document.createElement('small');
+      b.className = 'bed ' + tier.split(' ')[0]; b.dataset.bed = r.bed; b.disabled = !result.sbars[r.bed].iris.ok;
+      b.title = `Click to send the page for bed ${r.bed} (the same as Approve)`; small.textContent = PAGE_LABEL.idle;
+      b.append(`Bed ${r.bed}`, small); b.onclick = () => sendPage(r.bed); c.append(b);
+    });
     $('board').append(c);
   });
   renderCards();
+  Object.entries(paged).forEach(([b, st]) => paint(b, st));   // keep paged beds marked if the board is rebuilt
+}
+
+const PAGE_LABEL = { idle: 'click to page', sending: 'sending…', sent: 'paged ✓', failed: 'failed, click to retry' };
+function paint(bed, state, note = '') {   // every control for this bed (board button and card button) shows the same state
+  document.querySelectorAll(`[data-bed="${bed}"]`).forEach((el) => {
+    el.disabled = state === 'sending' || state === 'sent';
+    el.classList.toggle('busy', state === 'sending');
+    const small = el.querySelector('small'); if (small) small.textContent = note ? `${PAGE_LABEL[state]} ${note}` : PAGE_LABEL[state];
+    const out = el.parentElement.querySelector('.pagestatus'); if (out) out.textContent = state === 'idle' ? '' : (note || PAGE_LABEL[state]);
+  });
+}
+async function sendPage(bed) {            // approving a bed fires the n8n webhook; the server checks Iris passed and the hash matches
+  if (!result || paged[bed] === 'sending' || paged[bed] === 'sent') return;
+  paged[bed] = 'sending'; paint(bed, 'sending');
+  try {
+    const res = await fetch('/api/approve/' + bed, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approver: 'Incoming RN', hash: result.hashes[bed] }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || 'HTTP ' + res.status);
+    paged[bed] = 'sent'; paint(bed, 'sent', `(${body.status})`);
+  } catch (err) { paged[bed] = 'failed'; paint(bed, 'failed', err.message); }
 }
 
 function renderCards() {
@@ -209,20 +241,16 @@ function renderCards() {
     card.append(h);
     'SBAR'.split('').forEach((k) => { const p = document.createElement('p'); const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k + ':'; p.append(kk); const t = document.createElement('span'); fill(t, s.sections[k]); p.append(t); card.append(p); });
     const ask = document.createElement('p'); fill(ask, 'Provider form (Quinn) — ask: ' + f.ask); card.append(ask);
-    const btn = document.createElement('button'); btn.textContent = 'Approve & send page'; btn.disabled = !s.iris.ok;
-    const out = document.createElement('span'); out.style.marginLeft = '8px';
-    btn.onclick = async () => {
-      btn.disabled = true;
-      const res = await fetch('/api/approve/' + r.bed, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approver: 'Incoming RN', hash: result.hashes[r.bed] }) });
-      out.textContent = res.ok ? (await res.json()).status : 'Blocked: ' + (await res.json()).detail;
-    };
+    const btn = document.createElement('button'); btn.textContent = 'Approve & send page'; btn.disabled = !s.iris.ok; btn.dataset.bed = r.bed;
+    const out = document.createElement('span'); out.className = 'pagestatus'; out.style.marginLeft = '8px';
+    btn.onclick = () => sendPage(r.bed);
     card.append(btn, out); $('cards').append(card);
   });
 }
 
 $('start').onclick = async () => {
   unlockAudio(); $('start').disabled = true; $('start').textContent = 'Running…';
-  result = null; queue = []; $('log').textContent = ''; $('cards').textContent = ''; $('board').textContent = '';
+  result = null; paged = {}; queue = []; $('log').textContent = ''; $('cards').textContent = ''; $('board').textContent = '';
   const r = await fetch('/api/run' + ($('agent').value ? '?agent=' + $('agent').value : ''), { method: 'POST' });
   if (!r.ok) { $('start').disabled = false; $('start').textContent = 'Start'; $('status').textContent = 'A run is already in progress.'; }
 };
