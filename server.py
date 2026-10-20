@@ -20,7 +20,11 @@ for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists()
     os.environ.setdefault(key.strip(), value.strip())
 
 app = FastAPI()
-EVENTS, STATE = [], {"result": None, "running": False, "start": 0}  # start = index of the current run's first event
+class Cancelled(Exception):
+    """Raised inside a run when the nurse asks a question, so the team stops the script and answers."""
+
+
+EVENTS, STATE = [], {"result": None, "running": False, "start": 0, "cancel": False}  # start = index of the current run's first event
 CV = threading.Condition()
 AUDIT = ROOT / "audit.jsonl"
 PACE_S = float(os.environ.get("EVENT_PACE_S", "0.4"))
@@ -36,6 +40,8 @@ def _voice(event):
 
 
 def emit(sender, to, text, citations=(), attachment=None):
+    if STATE["cancel"] and threading.current_thread().name == "run":
+        raise Cancelled
     with CV:
         event = {"id": len(EVENTS), "from": sender, "to": to, "text": text,
                  "citations": list(citations), "attachment": attachment, "ts": time.time()}
@@ -49,6 +55,8 @@ def emit(sender, to, text, citations=(), attachment=None):
 def _worker(agent):
     try:
         STATE["result"] = pipeline.run(emit, agent)
+    except Cancelled:
+        pass
     finally:  # a crashed run must never leave the server stuck on "run in progress"
         STATE["running"] = False
         with CV:
@@ -71,7 +79,7 @@ def run(agent: str | None = None):
     with CV:
         STATE["start"] = len(EVENTS)
     STATE.update(result=None, running=True)
-    threading.Thread(target=_worker, args=(agent,), daemon=True).start()
+    threading.Thread(target=_worker, args=(agent,), daemon=True, name="run").start()
     return {"started": True}
 
 
@@ -106,9 +114,13 @@ HISTORY = []   # earlier asks and replies, so the team does not repeat itself
 
 
 def ensure_result():
-    """Questions work before Start: run the handoff silently once if there is no result yet."""
-    while STATE["running"]:
-        time.sleep(0.3)
+    """The nurse's question interrupts any scripted run. If there is no result yet, run the handoff silently once."""
+    STATE["cancel"] = True
+    for _ in range(100):  # the run stops at its next line (a sandbox call can take a few seconds)
+        if not STATE["running"]:
+            break
+        time.sleep(0.2)
+    STATE["cancel"] = False
     if STATE["result"] is None:
         STATE["result"] = pipeline.run(lambda *a, **k: None, silent=True)
 

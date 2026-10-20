@@ -79,3 +79,16 @@ def test_asking_to_run_the_handoff_starts_the_briefing(client):
     server.STATE.update(result=None, running=False)
     assert client.post("/api/ask", json={"question": "Please run the handoff for me"}).json() == {"started": True}
     _wait()
+
+
+def test_asking_interrupts_a_scripted_run_and_the_team_answers_the_question(client, monkeypatch):
+    monkeypatch.setattr(server, "PACE_S", 0.2)
+    server.STATE.update(result=None, running=False)
+    assert client.post("/api/run").status_code == 200
+    time.sleep(0.6)
+    assert server.STATE["running"] is True
+    ans = client.post("/api/ask", json={"question": "Is 404 allergic to anything?"}).json()
+    assert ans["turns"][-1]["from"] == "Wren" and "Codeine" in ans["turns"][-1]["text"]
+    assert server.STATE["running"] is False and server.STATE["cancel"] is False
+    spoken = [e for e in client.get("/api/state").json()["events"] if "from" in e]
+    assert spoken[-1]["from"] == "Wren" and len(spoken) < 20   # the script was cut short, not played to the end

@@ -61,7 +61,7 @@
       <div id="board"></div>
       <div id="log"></div>
       <div style="display:flex;gap:6px;margin-top:10px">
-        <input type="text" id="q" placeholder="Ask anything about 4 West, by voice or text">
+        <input type="text" id="q" placeholder="Type or say your own question, then press Enter (no need to click Start)">
         <button id="mic" title="Push to talk">🎤</button><button id="ask">Ask</button>
       </div>
     </div>
@@ -111,6 +111,7 @@ async function init() {
   };
 }
 
+let endCurrent = null;                 // stops the line being spoken right now
 const player = new Audio();            // the only audio element, so two voices can never overlap
 const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 function unlockAudio() { player.src = SILENCE; player.play().catch(() => {}); }   // a click lets later clips play
@@ -124,7 +125,8 @@ async function speakText(ev) {         // resolves only when this line has reall
   player.pause(); window.speechSynthesis?.cancel();
   return new Promise((done) => {
     let guard;
-    const end = () => { clearTimeout(guard); player.onended = player.onerror = player.onloadedmetadata = null; done(); };
+    const end = () => { clearTimeout(guard); player.onended = player.onerror = player.onloadedmetadata = null; endCurrent = null; done(); };
+    endCurrent = end;
     if (audioFor[ev.id]) {
       guard = setTimeout(end, 40000);  // safety net until the clip's real length is known
       player.onloadedmetadata = () => { clearTimeout(guard); guard = setTimeout(end, player.duration * 1000 + 2000); };
@@ -214,6 +216,7 @@ $('start').onclick = async () => {
 };
 async function ask() {
   unlockAudio(); const q = $('q').value.trim(); if (!q) return;
+  queue.length = 0; player.pause(); window.speechSynthesis?.cancel(); endCurrent?.();   // your question interrupts the script
   $('q').value = ''; $('ask').disabled = true; $('ask').textContent = 'Thinking…';   // the team can take ~10 s to answer
   try { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); }
   finally { $('ask').disabled = false; $('ask').textContent = 'Ask'; }
