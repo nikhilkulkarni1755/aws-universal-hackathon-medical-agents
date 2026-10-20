@@ -2,6 +2,7 @@
 in their own voices, and Iris audits every reply. Without a model (or if it fails) the keyword router answers."""
 import json
 import re
+import sys
 
 from .agents import PERSONAS, echo_claims, load_patients
 from .iris import check_chat, verdict
@@ -60,14 +61,27 @@ def _scripted(question, result, note):
     return turns, note
 
 
+def _turns(reply):
+    """Pull the turns out of a model reply, tolerating prose around the JSON, loose names and a loose 'to' field."""
+    match = re.search(r"\{.*\}", reply, re.S)
+    try:
+        raw = json.loads(match.group(0))["turns"]
+        by_name = {n.lower(): n for n in NAMES}
+        turns = [{"from": by_name[str(t["from"]).strip().lower()],
+                  "to": by_name.get(str(t.get("to", "")).strip().lower(), "RN"), "text": str(t["text"]).strip()}
+                 for t in raw if str(t.get("from", "")).strip().lower() in by_name and str(t.get("text", "")).strip()]
+    except (AttributeError, ValueError, KeyError, TypeError):
+        turns = []
+    if turns:
+        turns[-1]["to"] = "RN"
+    return turns[:4]
+
+
 def _valid(reply, allowed):
     """Parse the model's turns and audit each one. Returns (turns, None) or (None, reason)."""
-    try:
-        turns = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", reply.strip()))["turns"]
-        assert 1 <= len(turns) <= 4 and turns[-1]["to"] == "RN"
-        for t in turns:
-            assert t["from"] in NAMES and (t["to"] in NAMES or t["to"] == "RN") and isinstance(t["text"], str)
-    except (ValueError, KeyError, TypeError, AssertionError):
+    turns = _turns(reply)
+    if not turns:
+        print(f"model reply was not usable turns: {reply[:300]!r}", file=sys.stderr)
         return None, "the model's reply was not in the expected shape"
     for t in turns:
         t["citations"] = re.findall(r"\[[^\]]+\]", t["text"])
@@ -83,7 +97,7 @@ def respond(question, result, history):
     """Returns (turns, how). Each turn is {"from","to","text","citations"}; `how` says what produced them."""
     ev = evidence(result)
     prompt = json.dumps({"request": question, "earlier": history[-4:], "evidence": ev}, ensure_ascii=False)
-    reply = complete(prompt, system=SYSTEM, max_tokens=900)
+    reply = complete(prompt, system=SYSTEM, max_tokens=1500)
     if not reply:
         return _scripted(question, result, "keyword router (no live model reply)")
     turns, why = _valid(reply, set(re.findall(r"\[[^\]]+\]", json.dumps(ev, ensure_ascii=False))))

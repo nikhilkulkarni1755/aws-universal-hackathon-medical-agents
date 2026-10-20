@@ -79,3 +79,18 @@ def test_evidence_has_no_patient_names_and_every_fact_has_a_citation(result):
 def test_chat_audit_allows_bed_numbers_and_escalations_but_not_uncited_values():
     assert check_chat("Wren, can you take bed 402? Notify provider now. Recheck vitals at 19:30.") == []
     assert check_chat("Potassium is 3.3.") == [("CR-6", "uncited claim")]
+
+
+def test_json_wrapped_in_prose_and_a_loose_to_field_are_accepted(monkeypatch, result):
+    wrapped = "Sure, here you go:\n```json\n" + json.dumps({"turns": [
+        {"from": "quinn", "to": "wren", "text": "Wren, can you take bed 403?"},
+        {"from": "WREN", "to": "Nurse", "text": "Potassium is 3.3 mmol/L [Lab Potassium 06:00]."}]}) + "\n```\nHope that helps!"
+    _model(monkeypatch, wrapped)
+    turns, how = converse.respond("403 potassium?", result, [])
+    assert [t["from"] for t in turns] == ["Quinn", "Wren"] and turns[-1]["to"] == "RN" and how.startswith("live Claude")
+
+
+def test_a_reply_cut_off_mid_json_falls_back_with_a_reason(monkeypatch, result):
+    _model(monkeypatch, '{"turns":[{"from":"Quinn","to":"Wren","text":"Wren, can you tak')
+    turns, how = converse.respond("403 potassium?", result, [])
+    assert turns[0]["from"] == "Iris" and "expected shape" in turns[0]["text"]
