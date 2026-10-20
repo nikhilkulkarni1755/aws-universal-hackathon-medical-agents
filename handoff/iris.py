@@ -48,3 +48,21 @@ def verdict(bad):
     if not bad:
         return {"ok": True, "text": "Pass."}
     return {"ok": False, "text": "Rejected: " + "; ".join(f"{r} ({why})" for r, why in bad)}
+
+
+IMPERATIVE = re.compile(r"(^|[.!?]\s+)(give|administer|start|stop|hold|discontinue|increase|decrease|titrate|bolus|push|hang|order|replace)\b", re.I)
+ESCALATION = re.compile(r"^(notify|recheck|reassess|monitor|verify|clarify|call)\b", re.I)
+BED = re.compile(r"\b(bed )?4\d\d\b", re.I)
+
+
+def check_chat(text):
+    """A free-form reply: no diagnosis, no order-style sentence, every sentence with a number cited (CR-1, CR-2, CR-6)."""
+    bad = []
+    if DIAGNOSIS.search(text):
+        bad.append(("CR-1", "diagnosis stated as fact"))
+    if IMPERATIVE.search(text):
+        bad.append(("CR-2", "order verb starts a sentence"))
+    for line in _sentences(text):
+        if re.search(r"\d", BED.sub("", line)) and not CITATION.search(line) and not ESCALATION.match(line):
+            bad.append(("CR-6", "uncited claim"))
+    return list(dict.fromkeys(bad))

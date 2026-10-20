@@ -30,7 +30,8 @@ def test_full_run_ask_and_approve(client):
     result = client.get("/api/state").json()["result"]
     assert [r["bed"] for r in result["ranking"]] == ["402", "403", "404", "401"]
     ans = client.post("/api/ask", json={"question": "Why is 402 above 403?"}).json()
-    assert ans["agent"] == "Vera" and "402: Escalate" in ans["text"] and ans["citations"]
+    last = ans["turns"][-1]
+    assert last["from"] == "Vera" and "402: Escalate" in last["text"] and last["citations"] and ans["how"].startswith("keyword router")
     assert client.post("/api/approve/402", json={"hash": "wrong"}).status_code == 409
     ok = client.post("/api/approve/402", json={"approver": "Incoming RN", "hash": result["hashes"]["402"]})
     assert ok.status_code == 200 and "page" in ok.json()["status"]
@@ -65,3 +66,16 @@ def test_a_crashed_run_does_not_wedge_the_server(client, monkeypatch):
     client.post("/api/run")
     _wait()
     assert server.STATE["running"] is False
+
+
+def test_a_question_works_before_start_and_is_spoken_by_the_owning_agent(client):
+    server.STATE.update(result=None, running=False)
+    ans = client.post("/api/ask", json={"question": "Is 404 allergic to anything?"}).json()
+    assert ans["turns"][-1]["from"] == "Wren" and "Codeine" in ans["turns"][-1]["text"]
+    assert server.STATE["result"] is not None
+
+
+def test_asking_to_run_the_handoff_starts_the_briefing(client):
+    server.STATE.update(result=None, running=False)
+    assert client.post("/api/ask", json={"question": "Please run the handoff for me"}).json() == {"started": True}
+    _wait()

@@ -68,6 +68,7 @@ def test_theo_script_uses_template_without_a_key(monkeypatch):
 
 
 def test_theo_script_strips_code_fences(monkeypatch):
+    monkeypatch.setenv("THEO_CLAUDE", "1")
     monkeypatch.setattr("handoff.sandbox.complete", lambda prompt, **kw: "```python\nprint(1)\n```")
     code, source = theo_script()
     assert code.strip() == "print(1)" and source == "claude"

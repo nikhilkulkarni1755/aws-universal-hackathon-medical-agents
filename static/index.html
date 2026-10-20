@@ -61,7 +61,7 @@
       <div id="board"></div>
       <div id="log"></div>
       <div style="display:flex;gap:6px;margin-top:10px">
-        <input type="text" id="q" placeholder="Ask by voice or text: Why is 402 above 403?">
+        <input type="text" id="q" placeholder="Ask anything about 4 West, by voice or text">
         <button id="mic" title="Push to talk">🎤</button><button id="ask">Ask</button>
       </div>
     </div>
@@ -212,7 +212,12 @@ $('start').onclick = async () => {
   const r = await fetch('/api/run' + ($('agent').value ? '?agent=' + $('agent').value : ''), { method: 'POST' });
   if (!r.ok) alert('A run is already in progress.');
 };
-async function ask() { unlockAudio(); const q = $('q').value.trim(); if (q) { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); $('q').value = ''; } }
+async function ask() {
+  unlockAudio(); const q = $('q').value.trim(); if (!q) return;
+  $('q').value = ''; $('ask').disabled = true; $('ask').textContent = 'Thinking…';   // the team can take ~10 s to answer
+  try { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); }
+  finally { $('ask').disabled = false; $('ask').textContent = 'Ask'; }
+}
 $('ask').onclick = ask; $('q').onkeydown = (e) => e.key === 'Enter' && ask();
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SR) { $('mic').onclick = () => { const r = new SR(); r.onresult = (e) => { $('q').value = e.results[0][0].transcript; ask(); }; r.start(); }; } else {

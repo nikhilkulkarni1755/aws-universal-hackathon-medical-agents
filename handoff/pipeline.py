@@ -156,7 +156,7 @@ ALIASES = {"iris": "vera"}
 AGENTS = sorted({a for a, _ in STEPS} | set(ALIASES))
 
 
-def run(emit, only=None):
+def run(emit, only=None, silent=False):
     """emit(sender, to, text, citations=(), attachment=None). With `only`, just that agent's events are emitted."""
     only = ALIASES.get(only, only)
     send = emit
@@ -166,7 +166,7 @@ def run(emit, only=None):
 
     ctx = {"pts": {p["bed"]: p for p in load_patients()}, "claims": echo_claims(), "signals": []}
     for agent, step in STEPS:
-        ctx["quiet"] = only not in (None, agent)
+        ctx["quiet"] = silent or only not in (None, agent)
         step(ctx, (lambda *a, **k: None) if ctx["quiet"] else emit)
     if only:
         return None

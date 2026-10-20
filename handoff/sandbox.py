@@ -63,7 +63,7 @@ REFERENCE:
 
 def theo_script():
     """Ask Claude for an independent re-implementation; the template when there is no reply. Returns (code, source)."""
-    reply = complete(PROMPT, max_tokens=3000)
+    reply = complete(PROMPT, max_tokens=3000) if os.environ.get("THEO_CLAUDE") else None  # opt-in: slow and paid
     if not reply:
         return THEO_SCRIPT, "template"
     return re.sub(r"^```(?:python)?\n|```\s*$", "", reply.strip(), flags=re.M), "claude"

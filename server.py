@@ -1,18 +1,19 @@
 """python server.py -> http://localhost:8000. Runs with no API key and no internet (offline fallbacks everywhere)."""
 import json
 import os
+import re
 import threading
 import time
 import urllib.request
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from handoff import masky, pipeline
+from handoff import converse, masky, pipeline
 from handoff.agents import PERSONAS, ROOT
-from handoff.personality import quip
 
 for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []:
     key, _, value = line.partition("=")
@@ -97,15 +98,35 @@ def state():
     return {"result": STATE["result"], "running": STATE["running"], "events": EVENTS[STATE["start"]:]}
 
 
+class Ask(BaseModel):
+    question: str
+
+
+HISTORY = []   # earlier asks and replies, so the team does not repeat itself
+
+
+def ensure_result():
+    """Questions work before Start: run the handoff silently once if there is no result yet."""
+    while STATE["running"]:
+        time.sleep(0.3)
+    if STATE["result"] is None:
+        STATE["result"] = pipeline.run(lambda *a, **k: None, silent=True)
+
+
 @app.post("/api/ask")
-async def ask(req: Request):
-    question = (await req.json()).get("question", "")
-    ans = pipeline.answer(question, STATE["result"])
+def ask(body: Ask):
+    """The nurse's own words drive the team (a sync endpoint, so the model call never blocks the event stream)."""
+    question = body.question.strip()
+    if re.search(r"\b(run|start|begin)\b.*\b(handoff|briefing)\b", question, re.I) and not STATE["running"]:
+        return run()
+    ensure_result()
     emit("RN", "Quinn", question)
-    if ans["agent"] != "Quinn":
-        emit("Quinn", ans["agent"], f"{ans['agent']}, can you take this one? {quip('Quinn', 'route')}")
-    emit(ans["agent"], "RN", ans["text"], ans["citations"])
-    return ans
+    turns, how = converse.respond(question, STATE["result"], HISTORY)
+    for i, t in enumerate(turns):
+        note = {"type": "text", "title": "How this was answered", "text": how} if i == 0 else None
+        emit(t["from"], t["to"], t["text"], t["citations"], note)
+    HISTORY.append({"rn": question, "team": [t["text"] for t in turns]})
+    return {"turns": turns, "how": how}
 
 
 def _page(bed, tier, approver, citations):

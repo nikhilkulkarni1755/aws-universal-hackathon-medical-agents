@@ -2,6 +2,8 @@
 so callers fall back to their template."""
 import json
 import os
+import sys
+import urllib.error
 import urllib.request
 
 URL = "https://router.flatkey.ai/v1/chat/completions"
@@ -18,5 +20,8 @@ def complete(prompt, system="", max_tokens=1500):
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             return json.load(resp)["choices"][0]["message"]["content"]
-    except (OSError, KeyError, IndexError, ValueError):
-        return None
+    except urllib.error.HTTPError as exc:
+        print(f"flatkey HTTP {exc.code}: {exc.read().decode()[:200]}", file=sys.stderr)
+    except (OSError, KeyError, IndexError, ValueError) as exc:
+        print(f"flatkey error: {exc.__class__.__name__}: {exc}", file=sys.stderr)
+    return None
