@@ -15,9 +15,17 @@ from fastapi.staticfiles import StaticFiles
 from handoff import converse, masky, pipeline
 from handoff.agents import PERSONAS, ROOT
 
-for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []:
+from agents.felix import FelixProviderFormAgent
+
+for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines() if (ROOT / ".env").exists() else []:
+    line = line.strip()
+    if not line or line.startswith("#"):
+        continue
     key, _, value = line.partition("=")
-    os.environ.setdefault(key.strip(), value.strip())
+    if key.strip():
+        os.environ.setdefault(key.strip(), value.strip())
+
+felix_agent = FelixProviderFormAgent()
 
 app = FastAPI()
 class Cancelled(Exception):
@@ -127,12 +135,25 @@ def ensure_result():
 
 @app.post("/api/ask")
 def ask(body: Ask):
-    """The nurse's own words drive the team (a sync endpoint, so the model call never blocks the event stream)."""
     question = body.question.strip()
     if re.search(r"\b(run|start|begin)\b.*\b(handoff|briefing)\b", question, re.I) and not STATE["running"]:
         return run()
     ensure_result()
     emit("RN", "Quinn", question)
+
+    # Allow nurse voice/text prompts like 'approve bed 402' or 'page doctor for 402'
+    approve_match = re.search(r"\b(approve|page|notify|send)\b.*?\b(40[1-4])\b", question, re.I)
+    if approve_match:
+        bed = approve_match.group(2)
+        if bed in STATE["result"]["sbars"] and STATE["result"]["sbars"][bed]["iris"]["ok"]:
+            tier = next(r["tier"] for r in STATE["result"]["ranking"] if r["bed"] == bed)
+            form = STATE["result"]["forms"][bed]
+            payload, status = _page(bed, tier, "Incoming RN (Voice/Chat)", form["evidence"], form=form)
+            with AUDIT.open("a") as f:
+                f.write(json.dumps({**payload, "hash": STATE["result"]["hashes"][bed]}) + "\n")
+            emit("Felix", "RN", f"{bed}: {status}. Special delivery en route! 📬", form["evidence"])
+            HISTORY.append({"rn": question, "team": [f"{bed}: {status}"]})
+            return {"turns": [{"from": "Felix", "to": "RN", "text": f"{bed}: {status}. Provider call sheet dispatched via Discord! 📬", "citations": form["evidence"]}], "how": "Direct nurse approval via prompt"}
     turns, how = converse.respond(question, STATE["result"], HISTORY)
     for i, t in enumerate(turns):
         note = {"type": "text", "title": "How this was answered", "text": how} if i == 0 else None
@@ -141,12 +162,24 @@ def ask(body: Ask):
     return {"turns": turns, "how": how}
 
 
-def _page(bed, tier, approver, form):
+def _page(bed, tier, approver, citations, form=None):
     """n8n payload: bed, tier, approver, time and citations only (CR-15)."""
-    stamp = time.strftime("%H:%M")
-    body = {"bed": bed, "tier": tier, "approver": approver, "time": stamp, "ask": form["ask"],
-            "message": f"Bed {bed} ({tier}): {form['ask']} Approved by {approver} at {stamp}.",
-            "citations": form["evidence"]}
+    body = {"bed": bed, "tier": tier, "approver": approver, "time": time.strftime("%H:%M:%S"),
+            "citations": citations}
+
+    # Dispatch via Felix to Discord with courier pun
+    try:
+        felix_res = felix_agent.approve_and_dispatch(
+            bed=bed,
+            patient_info={"tier": tier, "code_status": "Full code", "allergies": []},
+            sbar={"A": form["concern"] if form else f"Bed {bed} Escalation", "R": form["ask"] if form else "Notify provider now."},
+            approved_by=approver
+        )
+        if felix_res.get("n8n_status", {}).get("discord_sent"):
+            return body, "page sent via Discord"
+    except Exception as exc:
+        print(f"[Felix Dispatch Error] {exc}")
+
     url = os.environ.get("N8N_WEBHOOK_URL")
     if not url or not url.startswith(("https://", "http://")):  # urlopen would also accept file:// and other schemes
         return body, "page queued (demo)"
@@ -170,11 +203,12 @@ async def approve(bed: str, req: Request):
         raise HTTPException(409, "draft changed since review; approve again")
     tier = next(r["tier"] for r in result["ranking"] if r["bed"] == bed)
     form = result["forms"][bed]
-    payload, status = _page(bed, tier, body.get("approver", "Incoming RN"), form)
+    payload, status = _page(bed, tier, body.get("approver", "Incoming RN"), form["evidence"], form=form)
     with AUDIT.open("a") as f:
         f.write(json.dumps({**payload, "hash": result["hashes"][bed]}) + "\n")
-    emit("Quinn", "RN", f"{bed}: {status}.", form["evidence"])
+    emit("Felix", "RN", f"{bed}: {status}.", form["evidence"])
     return {"status": status, "payload": payload}
+
 
 
 @app.get("/")

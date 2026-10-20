@@ -4,7 +4,7 @@ import re
 from .agents import ROOT
 from .iris import CITATION
 
-GOLD = (ROOT / "docs" / "gold-sbar.md").read_text()
+GOLD = (ROOT / "docs" / "gold-sbar.md").read_text(encoding="utf-8")
 
 
 def gold(bed):
