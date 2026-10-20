@@ -28,6 +28,7 @@
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; }
   #stage { display:flex; gap:14px; align-items:center; min-height:230px; }
   #big { width:170px; height:170px; border-radius:50%; display:grid; place-items:center; font-size:64px; font-weight:700; color:#fff; flex:none; border:4px solid transparent; }
+  #vid { display:none; width:170px; height:170px; border-radius:50%; object-fit:cover; flex:none; border:4px solid #fff; background:#000; }
   #who { font-size:20px; font-weight:700; } #role { color:var(--mute); }
   #caption { font-size:18px; margin-top:8px; min-height:3.2em; }
   #share { margin-top:8px; } #share img { max-width:260px; border-radius:8px; } #share pre { white-space:pre-wrap; background:#0f1115; padding:8px; border-radius:8px; }
@@ -65,7 +66,7 @@
   <section>
     <div class="panel">
       <div id="stage">
-        <div id="big">?</div>
+        <div id="big">?</div><video id="vid" playsinline></video>
         <div><div id="who">Huddle ready</div><div id="role">Press Start handoff</div><div id="caption"></div><div id="share"></div></div>
       </div>
       <div id="strip"></div>
@@ -89,7 +90,7 @@
 const $ = (id) => document.getElementById(id);
 const CHIP = /(\[[^\]]+\])/g;
 let personas = {}, tiles = {}, queue = [], busy = false, result = null, paged = {};
-const audioFor = {};   // event id -> Masky audio URL, filled by SSE audio events
+const audioFor = {}, videoFor = {};   // event id -> Masky audio / video URL, filled by SSE events
 
 function fill(el, text) {              // text with citation chips, built with DOM nodes (no HTML injection)
   el.textContent = '';
@@ -124,14 +125,16 @@ async function init() {
   es.onmessage = (m) => {
     const e = JSON.parse(m.data);
     if (e.audio_for !== undefined) audioFor[e.audio_for] = e.audio_url;
+    else if (e.video_for !== undefined) videoFor[e.video_for] = e.video_url;
     else if (e.done) { $('start').disabled = false; $('start').textContent = 'Start'; }
     else { queue.push(e); pump(); }
   };
 }
 
 let endCurrent = null;                 // stops the line being spoken right now
-const player = new Audio();            // the only audio element, so two voices can never overlap
+const player = $('vid');               // the only player (audio and video), so two voices can never overlap
 const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function showVideo(on) { $('vid').style.display = on ? 'block' : 'none'; $('big').style.display = on ? 'none' : 'grid'; }   // Quinn's face becomes video while it plays
 function unlockAudio() { player.src = SILENCE; player.play().catch(() => {}); }   // a click lets later clips play
 const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph/i;
 function fallbackVoice() {
@@ -140,16 +143,19 @@ function fallbackVoice() {
 async function speakText(ev) {         // resolves only when this line has really finished, so the next one never starts early
   const p = personas[ev.from], text = ev.text.replace(CHIP, '');
   for (let i = 0; p?.masky && !audioFor[ev.id] && i < 32; i++) await new Promise((r) => setTimeout(r, 250));
-  player.pause(); window.speechSynthesis?.cancel();
+  for (let i = 0; p?.video && !videoFor[ev.id] && i < 6; i++) await new Promise((r) => setTimeout(r, 250));   // a cached video lands a moment after the audio
+  player.pause(); window.speechSynthesis?.cancel(); showVideo(false);
   return new Promise((done) => {
     let guard;
-    const end = () => { clearTimeout(guard); player.onended = player.onerror = player.onloadedmetadata = null; endCurrent = null; done(); };
+    const end = () => { clearTimeout(guard); player.onended = player.onerror = player.onloadedmetadata = null; endCurrent = null; showVideo(false); done(); };
     endCurrent = end;
-    if (audioFor[ev.id]) {
+    const src = videoFor[ev.id] || audioFor[ev.id];
+    if (src) {
+      showVideo(!!videoFor[ev.id]);
       guard = setTimeout(end, 40000);  // safety net until the clip's real length is known
       player.onloadedmetadata = () => { clearTimeout(guard); guard = setTimeout(end, player.duration * 1000 + 2000); };
       player.onended = player.onerror = end;
-      player.src = audioFor[ev.id]; player.play().catch(end); return;
+      player.src = src; player.play().catch(end); return;
     }
     if (!window.speechSynthesis || !p) return end();
     guard = setTimeout(end, 3000 + text.length * 120);

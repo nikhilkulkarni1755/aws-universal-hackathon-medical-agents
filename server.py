@@ -32,11 +32,16 @@ PACE_S = float(os.environ.get("EVENT_PACE_S", "0.4"))
 
 def _voice(event):
     """Render the line in the agent's Masky voice, then tell the page which event the audio belongs to."""
-    url = masky.speak(event["from"], event["text"])
-    if url:
-        with CV:
-            EVENTS.append({"id": len(EVENTS), "audio_for": event["id"], "audio_url": url})
-            CV.notify_all()
+    kinds = ["audio"] + (["video"] if event["from"] in masky.VIDEO else [])
+    def render(kind):   # video only answers quickly when Masky already holds this exact line; otherwise audio plays
+        url = masky.speak(event["from"], event["text"], timeout=25 if kind == "audio" else 6, output=kind)
+        if url:
+            with CV:
+                EVENTS.append({"id": len(EVENTS), f"{kind}_for": event["id"], f"{kind}_url": url})
+                CV.notify_all()
+    for kind in kinds[1:]:
+        threading.Thread(target=render, args=(kind,), daemon=True).start()
+    render("audio")
 
 
 def emit(sender, to, text, citations=(), attachment=None):
@@ -66,7 +71,7 @@ def _worker(agent):
 
 @app.get("/api/agents")
 def agents():
-    return {"agents": [{**p, "masky": masky.has_voice(p["name"]), "image": (ROOT / "assets" / "portraits" / f"{p['name']}.jpg").exists()} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
+    return {"agents": [{**p, "masky": masky.has_voice(p["name"]), "video": p["name"] in masky.VIDEO, "image": (ROOT / "assets" / "portraits" / f"{p['name']}.jpg").exists()} for p in PERSONAS], "demo": pipeline.AGENTS, "mode": "CACHED (live integrations pending)"}
 
 
 @app.post("/api/run")
