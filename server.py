@@ -141,10 +141,12 @@ def ask(body: Ask):
     return {"turns": turns, "how": how}
 
 
-def _page(bed, tier, approver, citations):
+def _page(bed, tier, approver, form):
     """n8n payload: bed, tier, approver, time and citations only (CR-15)."""
-    body = {"bed": bed, "tier": tier, "approver": approver, "time": time.strftime("%H:%M:%S"),
-            "citations": citations}
+    stamp = time.strftime("%H:%M")
+    body = {"bed": bed, "tier": tier, "approver": approver, "time": stamp, "ask": form["ask"],
+            "message": f"Bed {bed} ({tier}): {form['ask']} Approved by {approver} at {stamp}.",
+            "citations": form["evidence"]}
     url = os.environ.get("N8N_WEBHOOK_URL")
     if not url or not url.startswith(("https://", "http://")):  # urlopen would also accept file:// and other schemes
         return body, "page queued (demo)"
@@ -168,7 +170,7 @@ async def approve(bed: str, req: Request):
         raise HTTPException(409, "draft changed since review; approve again")
     tier = next(r["tier"] for r in result["ranking"] if r["bed"] == bed)
     form = result["forms"][bed]
-    payload, status = _page(bed, tier, body.get("approver", "Incoming RN"), form["evidence"])
+    payload, status = _page(bed, tier, body.get("approver", "Incoming RN"), form)
     with AUDIT.open("a") as f:
         f.write(json.dumps({**payload, "hash": result["hashes"][bed]}) + "\n")
     emit("Quinn", "RN", f"{bed}: {status}.", form["evidence"])

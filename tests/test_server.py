@@ -35,6 +35,8 @@ def test_full_run_ask_and_approve(client):
     assert client.post("/api/approve/402", json={"hash": "wrong"}).status_code == 409
     ok = client.post("/api/approve/402", json={"approver": "Incoming RN", "hash": result["hashes"]["402"]})
     assert ok.status_code == 200 and "page" in ok.json()["status"]
+    msg = ok.json()["payload"]["message"]
+    assert msg.startswith("Bed 402 (Escalate): Notify provider") and "Liu" not in msg   # readable page, bed number only
     assert server.AUDIT.read_text().count("\n") == 1
     assert "Liu" not in server.AUDIT.read_text()
 

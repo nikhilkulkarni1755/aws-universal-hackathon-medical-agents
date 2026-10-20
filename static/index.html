@@ -12,8 +12,17 @@
   header h1 { font-size:17px; margin:0 auto 0 0; }
   .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid var(--line); }
   .syn { background:#5c1a1a; color:#ffc9c9; border-color:var(--red); }
-  button { background:#4c6ef5; color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  button { background:#4c6ef5; color:#fff; border:0; border-radius:8px; padding:8px 14px; min-height:38px; font-size:14px; cursor:pointer; touch-action:manipulation; transition:transform .08s, background .15s; }
+  button:hover:not(:disabled) { background:#5b7cff; }
+  button:active:not(:disabled) { transform:scale(.96); }
   button:disabled { background:#3a3f4c; color:var(--mute); cursor:not-allowed; }
+  button:focus-visible, input:focus-visible { outline:2px solid #9db4ff; outline-offset:2px; }
+  button.listening { background:var(--red); animation:pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(224,49,49,.6); } 50% { box-shadow:0 0 0 8px rgba(224,49,49,0); } }
+  button.busy::after { content:''; display:inline-block; width:12px; height:12px; margin-left:8px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .askrow { display:flex; gap:6px; margin-top:10px; }
+  #status { min-height:1.5em; margin-top:6px; font-size:13px; color:var(--mute); }
   main { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:14px; padding:14px; }
   @media (max-width:900px) { main { grid-template-columns:1fr; } }
   .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; }
@@ -60,10 +69,12 @@
     <div class="panel">
       <div id="board"></div>
       <div id="log"></div>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <input type="text" id="q" placeholder="Type or say your own question, then press Enter (no need to click Start)">
-        <button id="mic" title="Push to talk">🎤</button><button id="ask">Ask</button>
+      <div class="askrow">
+        <input type="text" id="q" autocomplete="off" placeholder="Type or say your own question (no need to click Start)">
+        <button id="mic" aria-label="Speak your question" title="Speak your question">🎤</button>
+        <button id="ask">Send</button>
       </div>
+      <div id="status" role="status" aria-live="polite"></div>
     </div>
     <div id="cards"></div>
   </section>
@@ -107,7 +118,8 @@ async function init() {
   es.onmessage = (m) => {
     const e = JSON.parse(m.data);
     if (e.audio_for !== undefined) audioFor[e.audio_for] = e.audio_url;
-    else if (!e.done) { queue.push(e); pump(); }
+    else if (e.done) { $('start').disabled = false; $('start').textContent = 'Start'; }
+    else { queue.push(e); pump(); }
   };
 }
 
@@ -147,7 +159,7 @@ function show(ev) {
   $('who').textContent = `${ev.from} → ${ev.to}`; $('role').textContent = p.role;
   const cap = $('caption'); fill(cap, ev.text + ' ' + ev.citations.join(' '));
   const d = document.createElement('div'); fill(d, `${ev.from} → ${ev.to}: ${ev.text} ${ev.citations.join(' ')}`);
-  $('log').append(d); $('log').scrollTop = 1e9;
+  $('log').append(d); while ($('log').childElementCount > 150) $('log').firstChild.remove(); $('log').scrollTop = 1e9;
   const sh = $('share'); sh.textContent = '';
   const a = ev.attachment;
   if (a?.type === 'svg') {   // sandbox output may be model-written: show it as an image, where scripts cannot run
@@ -209,24 +221,61 @@ function renderCards() {
 }
 
 $('start').onclick = async () => {
-  unlockAudio();
+  unlockAudio(); $('start').disabled = true; $('start').textContent = 'Running…';
   result = null; queue = []; $('log').textContent = ''; $('cards').textContent = ''; $('board').textContent = '';
   const r = await fetch('/api/run' + ($('agent').value ? '?agent=' + $('agent').value : ''), { method: 'POST' });
-  if (!r.ok) alert('A run is already in progress.');
+  if (!r.ok) { $('start').disabled = false; $('start').textContent = 'Start'; $('status').textContent = 'A run is already in progress.'; }
 };
-async function ask() {
-  unlockAudio(); const q = $('q').value.trim(); if (!q) return;
-  queue.length = 0; player.pause(); window.speechSynthesis?.cancel(); endCurrent?.();   // your question interrupts the script
-  $('q').value = ''; $('ask').disabled = true; $('ask').textContent = 'Thinking…';   // the team can take ~10 s to answer
-  try { await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) }); }
-  finally { $('ask').disabled = false; $('ask').textContent = 'Ask'; }
-}
-$('ask').onclick = ask; $('q').onkeydown = (e) => e.key === 'Enter' && ask();
+// The Ask box has one state at a time: idle -> listening -> review -> thinking -> idle.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR) { $('mic').onclick = () => { const r = new SR(); r.onresult = (e) => { $('q').value = e.results[0][0].transcript; ask(); }; r.start(); }; } else {
-  $('mic').disabled = true; $('mic').title = 'Speech recognition needs Google Chrome';
-  $('q').placeholder = 'Type your question (the mic needs Google Chrome: open http://localhost:8000 there)';
+const ui = { mode: 'idle', rec: null };
+const HINT = { idle: '', listening: 'Listening… speak now, then tap ■ Stop', review: 'Check the text, then press Send (or Enter)', thinking: 'The team is working on it…' };
+function setMode(mode, note = '') {
+  ui.mode = mode;
+  const thinking = mode === 'thinking', listening = mode === 'listening';
+  $('mic').classList.toggle('listening', listening); $('mic').textContent = listening ? '■ Stop' : '🎤';
+  $('mic').disabled = thinking || !SR;
+  $('ask').disabled = thinking || listening; $('ask').classList.toggle('busy', thinking); $('ask').textContent = thinking ? 'Thinking' : 'Send';
+  $('q').disabled = thinking;
+  $('status').textContent = note || HINT[mode];
 }
+function interrupt() { queue.length = 0; player.pause(); window.speechSynthesis?.cancel(); endCurrent?.(); }   // stop the script so you can speak or be heard
+
+async function ask() {
+  if (ui.mode === 'thinking' || ui.mode === 'listening') return;
+  const q = $('q').value.trim();
+  if (!q) { setMode('idle', 'Type or say a question first'); $('q').focus(); return; }
+  unlockAudio(); interrupt(); setMode('thinking');
+  try {
+    const res = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    $('q').value = ''; setMode('idle');
+  } catch (err) {
+    setMode('review', `That did not go through (${err.message}). Your text is still here; press Send to retry.`);
+  }
+  $('q').focus();
+}
+
+function toggleMic() {
+  if (ui.mode === 'listening') { ui.rec.stop(); return; }
+  if (ui.mode === 'thinking') return;
+  unlockAudio(); interrupt();
+  const r = new SR(); r.lang = 'en-US'; r.interimResults = true; r.continuous = false;
+  r.onstart = () => setMode('listening');
+  r.onresult = (e) => { $('q').value = Array.from(e.results).map((x) => x[0].transcript).join(' ').trim(); };   // live text; nothing is sent yet
+  r.onerror = (e) => setMode('idle', e.error === 'not-allowed' ? 'Microphone blocked: allow it from the address bar' : e.error === 'no-speech' ? 'Did not hear anything. Tap 🎤 and try again' : `Mic problem: ${e.error}`);
+  r.onend = () => {
+    if (ui.mode !== 'listening') return;   // an error already set the message
+    const heard = $('q').value.trim();
+    setMode(heard ? 'review' : 'idle', heard ? '' : 'Did not catch that. Tap 🎤 to try again');
+    if (heard) $('q').focus();
+  };
+  ui.rec = r; r.start();
+}
+
+$('ask').onclick = ask; $('mic').onclick = toggleMic;
+$('q').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ask(); } };
+setMode('idle', SR ? '' : 'The mic needs Google Chrome. You can still type your question.');
 init();
 </script>
 </body>
